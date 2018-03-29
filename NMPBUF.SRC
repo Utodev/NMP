@@ -1,0 +1,50 @@
+
+CONST BuffSize=512;
+
+(* El tama¤o del buffer ha de ser mayor o igual que el tama¤o *)
+(* de la variable m s grande que se vaya a leer del fichero   *)
+
+TYPE
+BufferRd=Object
+
+ Buff:ARRAY[0..BuffSize-1] OF Char;
+ BuffTam,BuffPoi:Word;
+
+ PROCEDURE Inicializar(VAR F:File);
+ PROCEDURE Leer(VAR F:File;VAR A;Tam:Word);
+ FUNCTION EOFL(VAR F:File):Boolean;
+
+END;
+
+PROCEDURE BufferRd.Inicializar(VAR F:File);
+BEGIN
+ BuffPoi:=0;
+ BlockRead(F,Buff,BuffSize,BuffTam);
+END;
+
+
+PROCEDURE BufferRd.Leer( VAR F:File; VAR A; Tam:Word );
+VAR Aux:Word;
+BEGIN
+ IF BuffPoi>=BuffTam THEN BEGIN
+                           BlockRead(F,Buff,BuffSize,BuffTam);
+                           BuffPoi:=0
+                          END;
+ IF Tam+BuffPoi>BuffTam THEN BEGIN
+                              Aux:=BuffTam-BuffPoi;
+                              Move(Buff[BuffPoi],Buff[0],Aux);
+                              BlockRead(F,Buff[Aux],BuffSize-Aux,BuffTam);
+                              Inc(BuffTam,Aux);
+                              BuffPoi:=0
+                             END;
+ Move(Buff[BuffPoi],A,Tam);
+ Inc(BuffPoi,Tam)
+END;
+
+
+FUNCTION BufferRd.EOFL(VAR F:File):Boolean;
+VAR Aux:Boolean;
+BEGIN
+ Aux:=(EOF(F) AND (BuffPoi>=BuffTam));
+ EOFL:=Aux;
+END;

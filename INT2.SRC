@@ -1,0 +1,1316 @@
+VAR SAVEDEBUG:Pointer;
+    (* puntero para guardar el trozo de pantalla bajo debug *)
+    DiskID:LongInt;
+
+
+PROCEDURE INTERPRETAR(PR:Byte;VAR PO:TablaProceso;VAR P:PuntCondacto);
+
+VAR O1,O2,OP2:Word;
+    O3:Word;
+    OP1:Palabra;
+    SaveMacroId:Word;
+    SavePrName:String[15];
+    SaveDoall:Boolean;
+    SaveIntState:Boolean;
+    SaveActStart:Word;
+
+LABEL L0,L1,L2,L3,L4;
+
+
+PROCEDURE CASE1;
+VAR BUC:Word;
+BEGIN
+  Case condacto(p^).Token OF
+     0:NotDone:=Flags[1]<>O1;
+     1:NotDone:=Flags[1]=O1;
+     2:NotDone:=Flags[1]<=O1;
+     3:NotDone:=Flags[1]>=O1;
+     4:Notdone:=(Flags[1]<>Whereat[O1]) AND (Whereat[O1]<>253) AND (Whereat[O1]<>254);
+     5:Notdone:=(Flags[1]=Whereat[O1]) OR (Whereat[O1]=253) OR (Whereat[O1]=254) ;
+     6:Notdone:=WhereAt[O1]<>253;
+     7:Notdone:=WhereAt[O1]=253;
+     8:Notdone:=WhereAt[O1]<>254;
+     9:Notdone:=WhereAt[O1]=254;
+    10:Notdone:=WhereAt[O1]<>o2;
+    11:Notdone:=WhereAt[O1]=o2;
+    12:Notdone:=Flags[O1]<>0;
+    13:NotDone:=Flags[O1]=0;
+    14:Notdone:=Flags[O1]<>o2;
+    15:Notdone:=Flags[O1]<=o2;
+    16:Notdone:=Flags[O1]>=o2;
+    17:Notdone:=Flags[O1]=o2;
+    18:Notdone:=Flags[O1]<>Flags[o2];
+    19:Notdone:=Flags[O1]=Flags[o2];
+    20:Notdone:=Flags[22]<>O1;
+    21:Notdone:=flags[18]<>o1;
+    22:Notdone:=Flags[19]<>o1;
+    23:Notdone:=Flags[20]<>o1;
+    24:Notdone:=NOT BTST(Flags[O1],o2);
+    25:NotDone:=BTST(Flags[O1],o2);
+    26:Notdone:=(Random(100)>O1);
+    27:Flags[O1]:=255;
+    28:Flags[O1]:=0;
+    29:IF Flags[O1]<>65535 THEN Inc(Flags[O1],o2) ELSE Flags[O1]:=0;
+    30:IF Flags[O1]<>0 THEN Dec(Flags[O1],o2) ELSE Flags[O1]:=65535;
+    31:Flags[O1]:=o2;
+    32:Flags[o2]:=Flags[O1]+Flags[o2];
+    33:Flags[o2]:=Flags[O1]-Flags[o2];
+    34:Flags[o2]:=Flags[O1] AND Flags[o2];
+    35:Flags[o2]:=Flags[O1] OR Flags[o2];
+    36:Flags[o2]:=Flags[O1] XOR Flags[o2];
+    37:Flags[O1]:=NOT Flags[O1];
+    38:Flags[o2]:=WhereAt[O1];
+    39:IF Flags[O1]<255 THEN  (* Chequeo rango *)
+       BEGIN
+        Dec(Objat[WhereAt[o2]]);
+        Inc(Objat[Flags[O1]]);
+        WhereAt[o2]:=Flags[O1]
+       END;
+    40:Flags[o2]:=Flags[O1];
+    41:BEGIN
+        Dec(Objat[Whereat[o2]]);
+        Inc(Objat[Whereat[o1]]);
+        WhereAt[o2]:=WhereAt[O1]
+       END;
+    42:BEGIN
+        AUX:=WhereAt[o2];
+        WhereAt[o2]:=WhereAt[O1];
+        WhereAt[O1]:=Aux
+       END;
+    43:Flags[o2]:=PuntObj[O1]^.Peso;
+    44:BEGIN
+        Dec(Objat[WhereAt[O1]]);
+        Inc(Objat[252]);
+        WhereAt[O1]:=252
+       END;
+    45:BEGIN
+        Dec(Objat[WhereAt[O1]]);
+        Inc(Objat[Flags[1]]);
+        WhereAt[O1]:=Flags[1];
+       END;
+    46:BEGIN
+        Dec(Objat[WhereAt[O1]]);
+        Inc(Objat[o2]);
+        WhereAt[O1]:=o2;
+       END;
+    47:PUSH(Pila[O1],Flags[o2]);
+    48:POP(Pila[O1],Flags[o2]);
+    49:LOOK(Pila[O1],Flags[o2]);
+    50:Flags[o2]:=Pila[O1]^.Num;
+    51:PUSHC(Cola[O1],Flags[o2]);
+    52:POPC(Cola[O1],Flags[o2]);
+    53:LOOKC(Cola[O1],Flags[o2]);
+    54:Flags[o2]:=Cola[O1]^.Num;
+    55:WEIGHT(O1);
+    56:BEGIN
+        SaveXY[O1].X:=GetX;
+        SaveXY[O1].Y:=GetY
+       END;
+    57:MOVETO(Savexy[O1].X,SaveXY[O1].Y);
+    58:BEGIN
+        SavePrName:=PRName;
+        SaveMacroid:=MacroId;
+        SaveDoall:=Doall.Activo;
+        Doall.activo:=False;
+        Mes(O1+256*O2);
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName
+       END;
+    59:BEGIN
+        SavePrName:=PRName;
+        SaveMacroid:=MacroId;
+        SaveDoall:=Doall.Activo;
+        Doall.activo:=False;
+        Mes(O1+256*O2);
+        texto('#');
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName
+       END;
+    60:Texto(Strs(Flags[O1]));
+    61:SetMode(O1);
+    62:Fadeout(O1,O2,O3);
+    63:IF BTST(Flags[0],5) THEN BEGIN  (* NOPLAY *)
+                                 BCLR(Flags[0],12);
+                                 Silence;
+                                END
+                           ELSE BEGIN
+                                BCLR(Flags[0],12);
+                                Nosound;
+                               END;
+    64:SetRGBPalette(O1 DIV 100,O1 MOD 100,O2 DIV 100, O2 MOD 100);
+    65:Texto('#');
+    66:BEGIN (*EXTERN*)
+        Flags[13]:=0;
+        SS:=' '+STRS(o2);
+        STR(Ofs(Flags),sf);
+        SS:=SS+' '+sf;
+        STR(seg(Flags),sf);
+        SS:=SS+' '+sf;
+        STR(Ofs(Conex),sf);
+        SS:=SS+' '+sf;
+        STR(seg(Conex),sf);
+        SS:=SS+' '+sf;
+        SS:=SS+' 0  0'+sf;
+        STR(Ofs(Conj),sf);
+        SS:=SS+' '+sf;
+        STR(seg(Conj),sf);
+        SS:=SS+' '+sf;
+        STR(Ofs(Whereat),sf);
+        SS:=SS+' '+sf;
+        STR(seg(Whereat),sf);
+        SS:=SS+' '+sf;
+        IF dos.fSearch(OP1+'.EXT','')<>'' THEN EXEC (OP1+'.EXT',ss) ELSE
+        IF dos.fSearch(OP1+'.UTO','')<>'' THEN EXEC (OP1+'.UTO',ss) ELSE
+        IF dos.fSearch(OP1+'.com','')<>'' THEN EXEC (OP1+'.com',ss)
+        ELSE IF dos.fSearch(OP1+'.exe','')<>''THEN
+         EXEC(OP1+'.exe',ss)
+        ELSE IF dos.fSearch(OP1+'.bat','')<>'' THEN
+         EXEC ( GetEnv('COMSPEC'),'/c '+op1+'.bat '+ss)
+        ELSE Flags[13]:=1;
+        DosEx:=DosExitCode;
+        IF DosError=8 THEN Flags[13]:=2 ELSE IF (DosEx AND $00FF)<>0 THEN Flags[13]:=(DosEx AND $00FF);
+       END;
+    67:BEGIN (*CHARSET*)
+        IF (O1<>0) AND (font<>O1) THEN (*CharSet*)
+         CASE LoadFont(strs(o1)) OF
+          1:Error(5);
+          2:Error(22);
+         END;
+         font:=O1;
+       END;
+    68:Flags[o1]:=Random(o2);
+    69:BSET(Flags[O1],o2);
+    70:BCLR(flags[O1],o2);
+    71:BEGIN
+        SavePrName:=PRName;
+        SaveMacroid:=MacroId;
+        SaveDoall:=Doall.Activo;
+        Doall.activo:=False;
+        PressAny;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName
+       END;
+    72:TALKER(O1);
+    73:Colors[1]:=O1;
+    74:CLS;
+    75:ClsW(24);
+    76:IF o1 IN [1..4] THEN
+        BEGIN
+         IF GetIco[o1]=NIL THEN GetMem(pointer(GetIco[o1]),1024);
+         CASE VideoMode OF
+          1:Segment2.GetImage(GetIco[o1]^,Getx,gety,32,32);
+          2..8:C4_getimage(getx,gety,32,32,getico[o1]);
+          9..11:NMPVESA.GetImage(getx,gety+VesaActivePage,32,32,getico[o1]^);
+         end;
+        END;
+    77:BEGIN
+        SavePrName:=PRName;
+        SaveMacroid:=MacroId;
+        SaveDoall:=Doall.Activo;
+        Doall.activo:=False;
+        Autog;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName
+       END;
+    78:BEGIN
+        SavePrName:=PRName;
+        SaveMacroid:=MacroId;
+        SaveDoall:=Doall.Activo;
+        Doall.activo:=False;
+        Autod;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName
+       END;
+    80:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        ifParse(O1);
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+    81:BEGIN
+        IF BTST(Flags[0],9) THEN Sound(o2);
+        Delay(O1);
+        Nosound
+       END;
+    82:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Save;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+    83:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Load;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+    84:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Input(ver,nom,pre,nom2,ver2,lo,true);
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+    85:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Listat(O1,False);
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+    86:Flags[o2]:=Objat[O1];
+    87:Moveto(O1,O2);
+    88:Delay(O1);
+    89:IF BTST(Flags[0],9) THEN Sound(O1);
+    90:Nosound;
+    91:Flags[1]:=O1;
+    92:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Message(13);            (* TURNS *)
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+    93:BREAK:=True;
+    94:BEGIN
+        Desc:=True;
+        Done:=True
+       END;
+    95:Done:=True;
+    96:Notdone:=True;
+    97:Error(0);
+    98:IF BTST(Flags[0],5) THEN IF AdlibPresent THEN PlaySB(Strs(O1),0)
+                                                ELSE BEGIN END
+                           ELSE Play(Strs(O1));
+    99:IF O1<1024 THEN BITSET.BSET(BITMAP,O1)
+                  ELSE Error(28);
+   100:IF Flags[o2]=0 THEN Error(8)
+                      ELSE Flags[o2]:=Flags[O1] DIV Flags[o2];
+   101:Flags[o2]:=Flags[O1]*Flags[o2];
+   102:IF Flags[o2]=0 THEN Error(8)
+                      ELSE Flags[o2]:=Flags[O1] MOD Flags[o2];
+   103:IF O1<1024 THEN BITSET.BCLR(BITMAP,O1)
+                  ELSE Error(28);
+   104:Gettime(Flags[O1],Flags[O2],S,S);
+   105:GetDate(H,Flags[O1],Flags[O2],H);
+   106:GetDate(Flags[O1],M,S,S);
+   107:BEGIN
+        Poi:=Recurs(Etiq,OP1,PBase,PR);
+        IF Poi<>65535 THEN BEGIN
+                            p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);
+                            PO:=PBase
+                           END;
+       END;
+   108:BEGIN (*LABEL*) END;
+   109:BEGIN
+        Descartecla;
+        Flags[O1]:=0;
+        Flags[O1+1]:=0;
+        WHILE getKey=0 DO BEGIN
+                           SaveDoall:=Doall.activo;
+                           Doall.activo:=False;
+                           SaveMacroid:=MacroId;
+                           SavePrName:=PRName;
+                           IF BTST(Flags[0],4) THEN PR_INPUT;
+                           Doall.Activo:=SaveDoall;
+                           MacroId:=SaveMacroId;
+                           PrName:=SavePrName;
+                          END;
+        Flags[O1]:=byte(xa);
+        Descartecla;
+       END;
+   110:BEGIN
+        O3:=Getkey;
+        if O3<>0 THEN
+         BEGIN
+          Flags[O1]:=system.lo(o3);
+          Flags[O1+1]:=hi(o3);
+         END;
+       END;
+   112:IF PuntObj[o1]<>NIL THEN BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Texto(Puntobj[o1]^.nombre);
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+   113:Notdone:=Flags[21]<>O1;
+   114:BEGIN
+        MoveD(Conections[Flags[O1]]^,CNX,20);
+        IF Flags[o2]<20 THEN
+                          BEGIN
+                            IF CNX[Flags[o2]]<>0 THEN BEGIN
+                                                       Flags[O1]:=CNX[Flags[o2]];
+                                                       BSET(Flags[o2],7);
+                                                      END;
+                           END;
+
+      END; {MOVE}
+     115:(*ASCII*) BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Texto(chr(o1));
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+     116:BEGIN
+          aux:=0;
+          WHILE (PuntObj[aux]<>NIL) AND (PuntObj[aux]^.Pal<>Flags[19]) AND (aux<256) DO
+           INC(aux);
+          IF (PuntObj[aux]=NIL) OR (aux=256) THEN Flags[O1]:=255
+                                    ELSE Flags[O1]:=PuntObj[aux]^.Num;
+         END;
+     117:Notdone:=BTST(PuntObj[o1]^.flags,o2);
+     118:Notdone:=NOT BTST(PuntObj[o1]^.flags,o2);
+     119:Load1;
+     120:OK(TRUE);
+     121:OK(FALSE);
+     122:IF Flags[O1]<>65535 THEN Inc(Flags[O1]) ELSE Flags[O1]:=0;
+     123:IF Flags[O1]>0 THEN Dec(Flags[O1]) ELSE Flags[O1]:=65535;
+     124:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Get(O1);;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+     125:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Drop(O1);;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+     126:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Wear(O1);;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+     127:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        Remove(O1);;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+     128:BSET(PuntObj[o1]^.flags,o2);
+   END;
+END;
+
+PROCEDURE CASE2;
+VAR BUC:Word;
+BEGIN
+  Case condacto(p^).Token OF
+     129:BCLR(PuntObj[o1]^.flags,o2);
+     130:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        autoremove;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+     131:BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        autoW;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+     132:BEGIN
+          Flags[14]:=o1;
+          Flags[15]:=o2;
+         END;
+     133:BEGIN                                        (*JNCONT*)
+          OK(FALSE);;
+          IF NOT Notdone THEN
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF Poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+                         ELSE Notdone:=False;
+          END;
+         END;
+     134:BEGIN                                          (*JCONT*)
+          OK(TRUE);
+          IF NOT Notdone THEN
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+                         ELSE Notdone:=False;
+          END;
+         END;
+     135:IF Flags[o2]<>255 THEN                  (*JNS*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     136:IF Flags[o2]=0 THEN                         (*JZ*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     137:IF Flags[o2]<>0 THEN                 (*JNZ*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     138:IF Flags[o2]=255 THEN                      (*JS*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     139:IF Flags[o3]<>O2 THEN             (*JNEQ*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END;
+          END;
+     140:IF BTST(Puntobj[Flags[9]]^.flags,o2) THEN     (*JH*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     141:IF NOT BTST(Puntobj[Flags[9]]^.flags,o2) THEN (*JL*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     142:IF Flags[o3]=O2 THEN (*JEQ*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     143:IF Flags[o3]>O2 THEN (*JGT*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     144:IF Flags[o3]<O2 THEN (*JLT*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     145:IF Whereat[o2]=254 THEN (*JC*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     146:IF Whereat[o2]<>254 THEN (*JNC*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     147:IF Whereat[o2]=253 THEN (*JW*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     148:IF Whereat[o2]<>253 THEN (*JNW*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     149:IF (Whereat[o2]=254) OR (Whereat[o2]=253) OR (Whereat[o2]=Flags[1])
+          THEN (*JP*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     150:IF NOT ((Whereat[o2]=254) OR (Whereat[o2]=253) OR (Whereat[o2]=Flags[1]))
+          THEN (*JNP*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     151:IF Whereat[o3]=O2 THEN (*Jisat*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     152:IF Whereat[O3]<>O2 THEN (*Jisnotat*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     153:IF Flags[1]=o2 THEN (*Jat*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     154:IF Flags[1]<>o2 THEN (*Jnotat*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     155:IF VideoMode IN [2..8] THEN NMPTW2.SetVisiblePage(O1) ELSE
+         IF VideoMode IN [9..11] THEN SetDisplayStart(O1*NMPVESA.scrheight,0);
+     156:IF VideoMode IN [2..8] THEN NMPTW2.SetActivePage(O1) ELSE
+         IF VideoMode IN [9..11] THEN VESAActivePage:=O1*NMPVESA.scrheight;
+
+     157:BEGIN  (*SCORE*)
+         SavePrName:=PRName;
+         SaveDoall:=Doall.activo;
+         Doall.activo:=False;
+         SaveMacroid:=MacroId;
+         Message(15);
+         Doall.Activo:=SaveDoall;
+         MacroId:=SaveMacroId;
+         PrName:=SavePrName;
+        END;
+     158:Notdone:=flags[18]<>255;
+     159:NotDone:=flags[19]<>255;
+     160:BEGIN
+          SavePrName:=PrName;
+          SaveDoall:=Doall.activo;
+          Doall.activo:=False;
+          SaveMacroId:=Macroid;
+          Notdone:=NOT IfParse(O1);
+          Doall.Activo:=SaveDoall;
+          MacroId:=SaveMacroId;
+          PrName:=SavePrName;
+         END;
+     161:IF BTST(Flags[0],6) AND BTST(Flags[0],11) THEN DMAPause; (*SFXPAUSE *)
+     162:IF VideoMode iN [2..8] THEN NMPTW2.SetActOffset(O1);
+     163:IF VideoMode IN [2..8] THEN NMPTW2.SetVISOffset(O1);
+     164:NotDone:=flags[20]<>255;
+     165:NotDone:=flags[22]<>255;
+     166:NotDone:=flags[21]<>255;
+     167:BEGIN
+          aux:=0;
+          WHILE (PuntObj[aux]<>NIL) AND (PuntObj[aux]^.Pal<>Flags[22]) AND (aux<256) DO
+           INC(aux);
+          IF (PuntObj[aux]=NIL) OR (aux=256) THEN Flags[O1]:=255
+                                    ELSE Flags[O1]:=PuntObj[aux]^.Num;
+         END;
+     168:IF O1 IN [0..19] THEN Flags[24]:=O1;
+     169:IF O1 IN [0..19] THEN Flags[25]:=o1;
+     170:MoveTo(win[Flags[24]].X0,win[Flags[24]].Y0);  (*WINTOP*)
+     171:Icon(Strs(O1),o2);
+     172:IF O2=0 THEN IF VideoMode IN [1,9..11] THEN PCX256(Strs(O1),True)
+                                                {$IFNDEF ALCACHOFA}
+                                                ELSE TWK256(Strs(O1),true)
+                                                {$ENDIF}
+                 ELSE IF VideoMode IN [1,9..11] THEN PCX256(Strs(O1)+'_'+Strs(O2),True)
+                                                {$IFNDEF ALCACHOFA}
+                                                ELSE TWK256(Strs(O1)+'_'+Strs(O2),true);
+                                                {$ELSE};{$ENDIF}
+     173:NotDone:=HayLuz;
+     174:IF O2=0 THEN IF VideoMode IN [1,9..11] THEN PCX256(Strs(O1),false)
+                                                {$IFNDEF ALCACHOFA}
+                                                ELSE TWK256(Strs(O1),False)
+                                                {$ENDIF}
+                 ELSE IF VideoMode IN [1,9..1] THEN PCX256(Strs(O1)+'_'+Strs(O2),False)
+                                                {$IFNDEF ALCACHOFA}
+                                               ELSE TWK256(Strs(O1)+'_'+Strs(O2),False);
+                                                {$ELSE};{$ENDIF}
+     175:LoadPaleta(STRS(O1),o2);
+     176:IF VideoMode IN [2..8] THEN SetActOffset(_WidthBytes*O1);
+     177:IF VideoMode IN [2..8] THEN SetVisOffset(_WidthBytes*O1);
+     179:BEGIN
+          IF Debug THEN Debug2:=True;(*BreakPoint*)
+          IF Modotest THEN BEGIN
+                            Debug:=true;
+                            Debug2:=True
+                           END;
+         END;
+     180:BEGIN
+          Flags[O1]:=0;
+          FOR aux:=0 TO 19 DO IF Conex[aux]<>0 THEN INC(Flags[O1]);
+         END;
+     181:IF PuntObj[O1]<>NIL THEN Flags[o2]:=PuntObj[O1]^.pal
+                             ELSE Flags[o2]:=255; (*OBJWORD*)
+     183:Flags[17]:=O2; {MACRO}
+     184:Macro:=False; {ENDMACRO}
+     185:Conj[O1]:=Conj[O1]+[o2];
+     186:Conj[O1]:=Conj[O1]-[o2];
+     187:Notdone:=NOT (o2 IN Conj[O1]);
+     188:Notdone:=(o2 IN Conj[O1]);
+     189:IF (O2 IN [1..4]) AND (o3 IN Conj[O2]) THEN (*Jinset*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     190:IF (O2 IN [1..4]) AND NOT (o3 IN Conj[O2]) THEN (*Jninset*)
+          BEGIN
+           Poi:=Recurs(Etiq,OP1,PBase,PR);
+           IF poi<>65535 THEN BEGIN
+                              p:=pointer(longint(Pbase^.cond)+sizeof(condacto)*poi-12);;
+                              PO:=PBase
+                            END
+          END;
+     191:Colors[2]:=O1;
+     192:FadePaleta(OP1,O2);
+     193:Refresh;
+     194:NoRefresh;
+     195:Save1;
+     196:BEGIN
+          IF O1>63 THEN O1:=63;
+          Fundido(O1,O2);
+         END;
+     197:BEGIN
+          IF O1>63 THEN O1:=63;
+          RFundido(O1,O2);
+         END;
+     199:IF o1 IN [1..4] THEN IF getIco[o1]<>NIL THEN
+      BEGIN
+       IF BTST(Flags[0],2) THEN EsperaBarrido;
+       CASE VideoMode OF
+        1:segment2.PutImage(getIco[O1]^,GetX,gety,32,32);
+        2..8:NMPTW2.C4_PutImage(getX,getY,32,32,getico[o1]);
+        9..11:NMPVESA.PutImage(GetX,gety+VesaActivePage,32,32,getico[o1]^,0);
+       end;
+      END;
+     200:Iconmask(Strs(O1),o2);
+     201:NotDone:=NOT HayLuz;
+     202:BEGIN
+          SavePrName:=PrName;
+          SaveDoall:=Doall.activo;
+          Doall.activo:=False;
+          SaveMacroId:=Macroid;
+          Listat(O1,true);
+          Doall.Activo:=SaveDoall;
+          MacroId:=SaveMacroId;
+          PrName:=SavePrName;
+         END;
+     203:BEGIN
+          SavePrName:=PrName;
+          SaveDoall:=Doall.activo;
+          Doall.activo:=False;
+          SaveMacroId:=Macroid;
+          Exits(O1,O2);
+          Doall.Activo:=SaveDoall;
+          MacroId:=SaveMacroId;
+          PrName:=SavePrName;
+         END;
+     204:Randomize;
+     205:BEGIN
+          Doall.Condacto:=pointer(longint(P)+SizeOf(Condacto));
+          Doall.Loc:=O1;
+          Doall.Activo:=True;
+          Doall.Bucle:=0;
+          Doall.Contenido:=Flags[19];
+          Doall.COnt2:=Flags[9];
+          Notdone:=True;
+         END;
+     206:BNEG(Flags[O1],O2);
+     207:Colors[0]:=O1;
+     208:Notdone:=NOT (Flags[1] IN [O1..O2]);
+     209:IF Flags[9]<>255 THEN
+         BEGIN
+          Dec(Objat[WhereAt[Flags[9]]]);
+          Inc(Objat[O1]);
+          WhereAt[Flags[9]]:=O1;
+         END;
+     210:IF (O1 IN [0..19]) THEN BEGIN
+                                  Conections[Flags[1]]^[O1]:=O2;
+                                  MoveD(Conections[Flags[1]]^,Conex,20)
+                                 END;
+     211:IF (O1 IN [0..19]) THEN Flags[O2]:=Conex[O1];
+     212:BEGIN END; (* SINONIMO *)
+     213:DSC(O1);
+     214:CLSW(25);
+     215:Notdone:=NOT TimeOutt;
+     216:IF BTST(Flags[0],6) THEN PlaySFX(O1,0);   (* PLAY *)
+     217:IF O3<20 THEN BEGIN
+                         WIN[O3].X0:=O1;
+                         WIN[O3].Y0:=O2;
+                        END;
+     218:IF O3<20 THEN BEGIN
+                         WIN[O3].XF:=O1;
+                         WIN[O3].YF:=O2;
+                        END;
+     226:BEGIN
+          PUSH(Pila[O1],GetY);
+          PUSH(Pila[O1],GetX);
+         END;
+     227:BEGIN
+          POP(Pila[O1],GetX);
+          POP(Pila[O1],GetY);
+         END;
+     228:PUSH(Pila[O1],O2);  (* IPUSH *)
+     229:PUSHC(Cola[O1],O2); (* IPUSHC *)
+     230:IF BTST(Flags[0],6) THEN PLAYSFX(O1,O2); (*SFXF*)
+     231:IF BTST(Flags[0],6) THEN REPEAT
+          SavePrName:=PrName;
+          SaveDoall:=Doall.activo;
+          Doall.activo:=False;
+          SaveMacroId:=Macroid;
+          IF BTST(Flags[0],4) THEN PR_INPUT;
+          Doall.Activo:=SaveDoall;
+          MacroId:=SaveMacroId;
+          PrName:=SavePrName;
+          IF Keypressed THEN
+                         BEGIN
+                         Descartecla;
+                         System.break;
+                        END;
+         UNTIL NOT ActiveSample;  (* SFXWAIT *)
+     232:IF O2>O1 THEN BEGIN  (* CycleCOL *)
+                        Move(Pall0[3*O2],OP1[0],3);
+                        Move(Pall0[3*O1],Pall0[3*o1+3],3*(O2-O1));
+                        Move(OP1[0],Pall0[3*O1],3);
+                        Paleta(pall0,O1,O2);
+                       END
+                    ELSE BEGIN
+                          Move(Pall0[3*O2],OP1[0],3);
+                          Move(Pall0[3*O2+3],Pall0[3*O2],3*(O1-O2));
+                          Move(OP1[0],Pall0[3*O1],3);
+                          paleta(Pall0,O2,O1);
+                         END;
+     233:IF O2=0 THEN PCXFAST(Strs(O1))
+                 ELSE PCXFAST(strs(o1)+'_'+strs(o2));
+     234:FOR I:=1 TO O1 DO EsperaBarrido;
+     235:BNEG(PuntObj[o1]^.flags,o2);
+     236:Flags[O1]:=GetX;
+     237:flags[O1]:=GetY;
+     238:CASE VideoMode OF
+          1:CLS;
+          2..8:ClearWindow(0,0,_width,height,Colors[0]);
+          9..11:NMPVESA.Rectangle(0,0+vesaActivePage,_width,height,Colors[0]);
+         end;
+     239:IF VideoMode IN [1,9..11] THEN PCX256(OP1,True)
+                                   {$IFNDEF ALCACHOFA}
+                                   ELSE TWK256(OP1,true);{$ELSE};
+                                   {$ENDIF}
+     240:IF VideoMode IN [1,9..11] THEN PCX256(OP1,false)
+                                   {$IFNDEF ALCACHOFA}
+                                   ELSE TWK256(OP1,false);{$ELSE};
+                                   {$ENDIF}
+     242:IF VideoMode IN [2..8] THEN C4_Move(0,O1*height,O2*height,_width,height);
+     244:IF DRVPtr<>NIL THEN CALLDRV(O1,O2,O3);
+     245:IF BTST(Flags[0],6) AND BTST(Flags[0],11) THEN BEGIN
+          BCLR(Flags[0],11); (* STOPSFX *)
+          DMAStop
+         END;
+     246:GRAY(O1,O2,O3);
+     247:Notdone:=(Flags[1] IN [O1..O2]);
+     248:BEGIN
+          SS:='';
+          ReadString(SS,['0'..'9']);
+          IF SS<>'' THEN Val(SS,Flags[O1],h) ELSE H:=1;
+          IF H<>0 THEN Flags[13]:=1 ELSE Flags[13]:=0;
+         END;
+     249:BEGIN
+          DisKId:=longint(O1)*10;
+          DisKId:=DiskId*10;
+          DisKId:=DiskId*10;
+          DiskId:=DiskId+longint(O2);
+          IF KEYDISKOK OR FindDisk(DiskId) THEN Flags[13]:=0
+                                               ELSE Flags[13]:=1
+         END; (* KEYDISK *)
+     250:BEGIN (* MAKESTR *)
+          IF NUMSTRING<>65535 THEN Error(21);
+          FOR BUC:=0 TO O1 DO BEGIN
+                              GetMem(pointer(STRINGS[BUC]),256);
+                              STRINGS[BUC]^:='';
+                             END;
+          NUMSTRING:=O1;
+         END;
+     251:BEGIN (* CONCATSTR *)
+          CHECKSTR(O1);
+          CHECKSTR(O2);
+          STRINGS[O1]^:=STRINGS[O1]^+STRINGS[O2]^
+         END;
+     252:BEGIN (* CLRSTR *)
+          CHECKSTR(O1);
+          STRINGS[O1]^:='';
+         END;
+     253:BEGIN (* EQSTR *)
+          CHECKSTR(O1);
+          CHECKSTR(O2);
+          NotDone:=STRINGS[O1]^ <> STRINGS[O2]^;
+         END;
+     254:BEGIN (* NOTEQSTR *)
+          CHECKSTR(O1);
+          CHECKSTR(O2);
+          NotDone:=STRINGS[O1]^ = STRINGS[O2]^;
+         END;
+     255:BEGIN (* FREESTR *)
+          IF NUMSTRING>0 THEN FOR BUC:=0 TO NUMSTRING DO FreeMem(STRINGS[BUC],256);
+          NUMSTRING:=65535;
+         END;
+     256:BEGIN (* UPCASE *)
+          CHECKSTR(O1);
+          CHECKSTR(O2);
+          STRINGS[O1]^:=UpSt(STRINGS[O2]^);
+         END;
+     257:BEGIN (*STRMES *)
+          CHECKSTR(O1);
+          STRINGS[O1]^:=GetNormalMessage(O3*256+O2);
+         END;
+     258:BEGIN (* COPYSTR *)
+          CHECKSTR(O1);
+          CHECKSTR(O2);
+          STRINGS[O1]^:=STRINGS[O2]^;
+         END;
+     259:BEGIN (* READSTR *)
+          CHECKSTR(O1);
+          STRINGS[O1]^:='';
+          ReadString(STRINGS[O1]^,[#32..#250]);
+         END;
+     260:BEGIN (* EDITSTR *)
+          CHECKSTR(O1);
+          ReadString(STRINGS[O1]^,[#32..#250]);
+         END;
+     261:BEGIN (* PRINTSTR *)
+          CHECKSTR(O1);
+          Texto(STRINGS[O1]^);
+         END;
+     262:FLI(STRS(O1)+'.FLI',O2);   (* FLI *)
+     263:CLOCK:=SYSTIME;             (* INITCLOCK *)
+     264:REPEAT         (* WAITCLOCK *)
+          IF BTST(Flags[0],4) THEN BEGIN
+        SavePrName:=PRName;
+        SaveDoall:=Doall.activo;
+        Doall.activo:=False;
+        SaveMacroid:=MacroId;
+        PR_Input;
+        Doall.Activo:=SaveDoall;
+        MacroId:=SaveMacroId;
+        PrName:=SavePrName;
+       END;
+         UNTIL (O1+Clock<=SysTime);
+     265:NotDone:=(O1+Clock>Systime);  (* ISNOTCLOCK *)
+     266:NotDone:=(O1+Clock<=Systime); (* ISCLOCK *)
+     267:BOOT;
+     268: BEGIN(* PARSE *)
+           SavePrName:=PRName;
+           SaveDoall:=Doall.activo;
+           Doall.activo:=False;
+           SaveMacroid:=MacroId;
+           Input(ver,nom,pre,nom2,ver2,lo,false);
+           Doall.Activo:=SaveDoall;
+           MacroId:=SaveMacroId;
+           PrName:=SavePrName;
+          END;
+     269:Notdone:=GuardaFrase='';  (* ISTEXT *)
+     270:Notdone:=GuardaFrase<>''; (* ISNOTTEXT *)
+     271:Newtext; (* NEWTEXT *)
+     272:BOSS;
+     273:PICPAL(O1,O2,O3);
+     276:Write_(PR,O1);
+     277:IF BTST(Flags[0],11) THEN
+          BEGIN
+          SFXWait:=True;
+          REPEAT
+            IF Keypressed THEN BEGIN
+                                DescarTecla;
+                                SFXWait:=False;
+                               END;
+           HotKey;
+          UNTIL NOT SFXWait; (* WaitSFX *)
+         END;
+     278:IF BTST(Flags[0],12) THEN
+          BEGIN
+          WaitingMusic:=True;
+          REPEAT
+            IF Keypressed THEN BEGIN
+                                DescarTecla;
+                                WaitingMusic:=False;
+                               END;
+           HotKey;
+          UNTIL NOT WaitingMusic; (* WAITMUSIC *)
+         END;
+    279:IF BTST(Flags[0],5) THEN BEGIN  (* NOPLAYFADE *)
+                                 fadingFMOut:=True;
+                                END
+                           ELSE BEGIN
+                                BCLR(Flags[0],12);
+                                Nosound;
+                               END;
+    280:IF BTST(Flags[0],5) THEN IF AdlibPresent THEN PlaySB(Strs(O1),1)
+                                                ELSE BEGIN END
+                           ELSE Play(Strs(O1));
+    281:if O1>18 THEN BEGIN
+         CleanUpTimer;
+         SetTimer(@TimerHandler,O1);
+        END;
+    282:BEGIN
+         CheckStr(O1);
+         Flags[O2]:=Byte(Strings[O1]^[0])
+        END;
+    283:BEGIN
+         CheckStr(O1);
+         Strings[O1]^:=Copy(Strings[O1]^,O2,O3);
+        END;
+    284:InitCD(Flags[O1],Flags[O2]);
+    285:IF CDInf.Hitrack<>0 THEN
+        BEGIN
+         Flags[13]:=0;
+         IF (O1>CDinf.Hitrack) OR (O1<CDinf.LoTrack) THEN Flags[13]:=1
+           ELSE IF O1<>CDinf.Hitrack THEN CDPlayAudio(O1,CDgetTrackStart(O1+1)-CDGetTrackStart(O1))
+           ELSE CDPlayAudio(O1,CDinf.LdAdr-CDGetTrackStart(O1));
+        END ELSE flags[13]:=1;
+    286:IF CDInf.Hitrack<>0 THEN BEGIN
+         Flags[13]:=0;
+         IF (O1>CDinf.Hitrack) OR (O1<CDinf.Lotrack) THEN Flags[13]:=1
+           ELSE CDPlayAudio(O1,CDinf.LdAdr-CDGetTrackStart(O1));
+        END ELSE Flags[13]:=1;
+    287:IF CDInf.Hitrack<>0 THEN
+         BEGIN
+          CDStop;
+          Flags[13]:=0;
+         END ELSE Flags[13]:=1;
+    288:IF CDInf.Hitrack<>0 THEN
+         BEGIN
+          CDgetPos(PosInf);
+          Flags[O1]:=PosInf.Min;
+          Flags[O2]:=PosInf.Sec;
+        END;
+    289:IF CDInf.Hitrack<>0 THEN
+         BEGIN
+          CDgetPos(PosInf);
+          Flags[O1]:=PosInf.DMin;
+          Flags[O2]:=PosInf.DSec;
+        END;
+    290:BEGIN
+         PalColor0:=O1;
+         PalColorF:=O2;
+        END;
+    END;{CASE}
+END;
+
+
+BEGIN
+
+IF condacto(P^).token=183 THEN MacroId:=condacto(P^).pa[8];
+IF condacto(p^).token=184 THEN MacroId:=0;
+
+(* genero par metros aunque luego algunos no valgan para nada *)
+
+(* genero parametro 1 *)
+CASE Coma[condacto(p^).Token].Flags[2] OF
+ '1','2','5'..'9':O1:=condacto(p^).pa[1];
+ '3':MoveD(condacto(p^).pa,O1,2);
+ '4':IF ((condacto(p^).token>=20) AND (condacto(p^).token<=23)) OR (condacto(p^).Token=113) THEN O1:=byte(OP1[4])
+                                                              ELSE MOVED(condacto(p^).pa,OP1,6);
+END;
+
+(* genero par metro 2 *)
+CASE Coma[condacto(p^).Token].Flags[3] OF
+'1','2','5'..'9':O2:=condacto(p^).pa[7];
+'3':MOVED(condacto(p^).pa[7],O2,2);
+END;
+
+(* genero par metro 3 *)
+O3:=condacto(p^).pa[9];
+
+(* creo la palabra que equivale al al primer par metro str$ si el propio
+   par metro no es ya una palabra *)
+
+IF Coma[condacto(p^).Token].Flags[2]<>'4' THEN OP1:=STRS(O1)
+                                ELSE Move(condacto(p^).pa,OP1,6);
+
+(* Si el par metro es una palabra de vocabulario creo tambi‚n el texto *)
+IF ((condacto(p^).token>=20) AND (condacto(p^).token<=23)) OR (condacto(p^).Token=113) THEN
+                             CASE condacto(p^).token OF
+                              21,113:OP1:=Palabrade(Verbos,O1);
+                              20,22:OP1:=Palabrade(Nombres,O1);
+                              23:OP1:=Palabrade(Preposic,O1);
+                             END;
+
+OP2:=O2; (* Salvaguardo el valor de operando por si es una macro *)
+
+(*INDIRECCIONADOS*)
+IF (condacto(p^).IND AND 1)=1 THEN O1:=Flags[O1];
+IF ((condacto(p^).IND SHR 1) AND 1)=1 THEN O2:=Flags[O2];
+IF ((condacto(p^).IND SHR 2) AND 1)=1 THEN O3:=Flags[O3];
+
+IF condacto(p^).Token=183 THEN IF (condacto(p^).IND SHR 1) AND 1=1 THEN O2:=Flags[O2 AND $00FF];
+
+IF (Coma[condacto(p^).Token].Flags[2]<>'3') AND (O1>255) THEN O1:=O1 AND $00FF;
+IF (Coma[condacto(p^).Token].Flags[3]<>'3') AND (O2>255) THEN O2:=O2 AND $00FF;
+
+IF (NOT MACRO) AND ((DEBUG AND DEBUG2) OR ((condacto(p^).Token=179) AND (ModoTest))) AND (PR<>64) THEN
+          BEGIN
+           Xs:=GetX;
+           Ys:=GetY;
+           GetMem(SaveDebug,320*51);
+           CASE VideoMode OF
+            1:Segment2.GetImage(SaveDebug^,0,0,320,51);
+            2..8:BEGIN
+                  SaveActStart:=ActStart;
+                  ActStart:=VisStart;
+                  C4_GetImage(0,0,320,51,SaveDebug);
+                 END;
+            9..11:NMPVESA.Getimage(0,0,320+VesaActivePage,51,SaveDebug^);
+          end;
+           L1:
+           CASE VideoMode OF
+            1:FillD(mem[$a000:0],51*320,Colors[0]);
+            2..8:Clearwindow(0,0,320,51,Colors[0]);
+            9..11:NMPVESA.Rectangle(0,0+VesaActivePage,320,51,Colors[0])
+           END;
+           MoveTo(0,0);
+           OUTTEXTCh(' '+PRName+' : ');
+           IF PO^.Verbo=255 THEN OutTextCh('* ')
+                            ELSE OutTextCh(Palabrade(Verbos,Po^.VErbo)+' ');
+           IF PO^.Nombre=255 THEN OutTextCh('*')
+                             ELSE OutTextCh(Palabrade(Nombres,Po^.Nombre));
+           OutTextCh(' : '+Coma[condacto(p^).Token].Tok+' ');
+           HotKey;
+           IF condacto(p^).Token=183 THEN Macro:=True;
+           FOR H:=1 TO byte(Coma[condacto(p^).Token].Flags[1])-48 DO
+            BEGIN
+             IF H=1 THEN BEGIN
+                          IF (condacto(p^).ind AND 1)=1 THEN OutTextCh('@');
+                          OutTextCh(OP1+' ');
+                         END;
+             IF H=2 THEN BEGIN
+                          IF ((condacto(p^).ind SHR 1) AND 1)=1 THEN OutTextCh('@');
+                         OutTextCh(STRS(OP2)+' ');
+                              END;
+             IF H=3 THEN BEGIN
+                          IF ((condacto(p^).ind SHR 2) AND 1)=1 THEN OutTextCh('@');
+                          OutTextCh(STRS(condacto(p^).pa[9])+' ');
+                         END;
+            END;
+           MoveTo(0,fontheigth+2);
+           OutTextCh(' FLAG '+STRS(FL)+'='+STRS(Flags[FL])+' '+BitWise(Flags[FL])+' ['+STRS(Recurse)+']');
+           MOVETO(0,(fontheigth+2)*2);
+           OuttextCh(' Cambia Info Frase Ver Retorno ');
+           IF condacto(p^).token=183 THEN OuttextCh('Macro ');
+           OuttextCh('Salir');
+           Chk:=UpcAse(Readkey);
+           IF (Chk='M') AND Macro THEN Macro:=False;
+           IF CHK='I' THEN BEGIN
+                            CASE VideoMode OF
+                             1:FillD(mem[$a000:320*0],51*320,Colors[0]);
+                             2..8:Clearwindow(0,0,320,51,Colors[0]);
+                             9..11:NMPVESA.Rectangle(0,0+VesaActivePage,320,51,Colors[0]);
+                            END;
+                            Moveto(0,0);
+                            OUTTEXTCh('MEMORIA LIBRE: '+STRS(MAxAvail DIV 1024)+'K');
+                            MOVETO(0,fontheigth+2);
+                            IF CACHEON THEN OUTTEXTCh('CACHE: '+STRS(FallosCache)+' fallos, '+STRS(ACIERTOSCACHE)+
+                            ' aciertos. ('+STRS( (ACIERTOSCACHE*100) DIV (ACIERTOSCACHE+FALLOSCACHE) )+'%)');
+                            MOVETO(0,(fontheigth+2)*2);
+                            OUTTEXTCh('CPU '+QUECHIP);
+                            READKEY;
+                            GOTO L1;
+                           END;
+           IF CHK='R' THEN BEGIN
+                            UntilReturn:=True;
+                            Debug2:=False;
+                            ProcReturn:=PR;
+                           END;
+           IF CHK='F' THEN BEGIN
+                            CASE VideoMode OF
+                                1:FillD(mem[$a000:320*0],51*320,Colors[0]);
+                             2..8:Clearwindow(0,0,320,51,Colors[0]);
+                             9..11:NMPVESA.Rectangle(0,0+VesaActivePage,320,51,Colors[0])
+                            END;
+                            Moveto(0,0);
+                            OuttextCh('V1: ');
+                            IF Flags[18]<>255 THEN OUTTEXTCh(Palabrade(Verbos,Flags[18])+' ')
+                                              ELSE OuttextCh('* ');
+
+                            OuttextCh('N1: ');
+                            IF Flags[19]<>255 THEN OUTTEXTCh(Palabrade(Nombres,Flags[19])+' ')
+                                              ELSE OuttextCh('* ');
+
+                            OuttextCh('PR: ');
+                            IF Flags[20]<>255 THEN OUTTEXTCh(Palabrade(Preposic,Flags[20])+' ')
+                                              ELSE OuttextCh('* ');
+
+                            OutTextCh('OBJ: ');
+                            IF Flags[9]<>255 THEN OuttextCh(Nombres[PuntObj[Flags[9]]^.pal]^.p)
+                                              ELSE OuttextCh('--');
+
+                            Moveto(0,fontheigth+2);
+                            OuttextCh('V2: ');
+                            IF Flags[21]<>255 THEN OUTTEXTCh(Palabrade(Verbos,Flags[21])+' ')
+                                              ELSE OuttextCh('* ');
+
+                            OuttextCh('N2: ');
+                            IF Flags[22]<>255 THEN OUTTEXTCh(Palabrade(Nombres,Flags[22])+' ')
+                                              ELSE OuttextCh('* ');
+                            OutTextCh('OBJ2: ');
+                            IF Flags[23]<>255 THEN OuttextCh(Nombres[PuntObj[Flags[23]]^.pal]^.p)
+                                                       ELSE OuttextCh('--');
+                            Moveto(0,2*(fontheigth+2));
+                            IF GuardaFrase='' THEN OUTTEXTCh('No hay ordenes en buffer.')
+                                              ELSE OUTTEXTCh('Hay ordenes en buffer.');
+                            READKEY;
+                            GOTO L1;
+                           END;
+           IF CHK='V' THEN BEGIN
+                            CASE VideoMode OF
+                             1:Segment2.Putimage(Savedebug^,0,0,320,51);
+                             2..8:C4_Putimage(0,0,320,51,SaveDebug);
+                             9..11:NMPVESA.Putimage(0,0+VesaActivePage,320,51,SaveDEbug^,0);
+                            END;
+                            READKEY;
+                            GOTO L1;
+                           END;
+           IF CHK IN ['S','§'] THEN DEBUG2:=False;
+           IF CHK='+' THEN BEGIN
+                            INC(Fl);
+                            GOTO L1
+                           END;
+           IF CHK='-' THEN BEGIN
+                            DEC(Fl);
+                            GOTO L1
+                           END;
+           IF CHK='*' THEN BEGIN
+                            INC(FL,10);
+                            GOTO L1
+                           END;
+           IF CHK='/' THEN BEGIN
+                            DEC(Fl,10);
+                            GOTO L1
+                           END;
+           IF CHK='C' THEN BEGIN
+                            CASE VideoMode of
+                                1:FillD(mem[$a000:320*0],51*320,Colors[0]);
+                             2..8:Clearwindow(0,0,320,51,Colors[0]);
+                             9..11:NMPVESA.rectangle(0,0+VesaActivePage,320,51,Colors[0])
+                            END;
+                            Moveto(0,0);
+                            OUTTEXTCh('FLAG '+STRS(FL)+'='+STRS(Flags[FL])+'='+Bitwise(Flags[fl]));
+                            Moveto(0,fontheigth+2);
+                            LeerFlag(SS);
+                            IF (SS<>'') AND (byte(SS[0])<=5) THEN VAL(SS,Flags[FL],h)
+                               ELSE IF Length(SS)>5 THEN Flags[FL]:=VALBIN(SS);
+                            GOTO L1
+                           END;
+           Moveto(Xs,Ys);
+           ActStart:=SaveActStart;
+           CASE VideoMode OF
+            1:Segment2.Putimage(Savedebug^,0,0,320,51);
+            2..8:C4_Putimage(0,0,320,51,SaveDebug);
+            9..11:NMPVESA.Putimage(0,0+VesaActivePage,320,51,SaveDEbug^,0);
+           END;
+          FreeMem(SaveDebug,320*51);
+          END;
+  MOVED(Conections[Flags[1]]^,Conex,20);
+  IF Pr=64 THEN BEGIN
+                 SaveIntState:=BTST(Flags[0],4);
+                 BCLR(Flags[0],4);
+                END;
+
+  IF CONDACTO(P^).token>128 THEN CASE2
+                            ELSE CASE1;
+
+
+IF PR=64 THEN IF SaveIntState THEN BSET(Flags[0],4);
+end;

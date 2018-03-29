@@ -1,0 +1,13 @@
+PROCEDURE CursorOn; Assembler;
+LABEL L1,L2;
+ASM
+   MOV AH,0Fh
+   INT 10h
+   CMP AL,7
+   JE L1
+   MOV CX,0607h
+   JMP L2
+L1:MOV CX,0B0Ch
+L2:MOV AH,01
+   INT 10h
+END;

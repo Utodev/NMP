@@ -1,0 +1,81 @@
+
+{* * * * * * * * * * * * * * *INICIO DEFINICION CLASE PANTALLA * * * * * * *}
+
+{Esta clase almacena el contenido de una pantalla de un PC en modo texto para
+ poder recuperarse m s tarde}
+
+TYPE
+PANTALLA = Object
+
+    XPANT,YPANT:Integer;
+    SalvaX,SalvaY:Integer;
+    SegmenVid:Word;
+    TamBufferVideo:Word;
+    PtrSalva:^Word;
+    PtrVideo:^Word;
+    VideoSeg:Word;
+
+
+FUNCTION MONOCROMO : Boolean;
+{Devuelve True si estamos en un monitor monocromo}
+PROCEDURE Salvar;
+{Salva la pantalla en el Heap}
+PROCEDURE Recuperar;
+{Recupera la pantalla mostr ndola}
+PROCEDURE Mostrar;
+{Recupera la pantalla mostr ndola pero no libera memoria}
+PROCEDURE Inicializar(X,Y:Integer);
+{Inicializa diciendo el n§ de l¡neas y columnas sobre las que se est  traba-}
+{jando en el momento.­Debe utilizarse con cualquier Objeto antes de usar nin-}
+{guna de las otras funciones de la clase}
+
+
+END;
+
+FUNCTION Pantalla.MONOCROMO : Boolean; Assembler;
+ ASM
+  INT 17
+  OR AX,30h
+  CMP AX,30h
+  JZ @CIERTO
+  AND AX,AX
+  JMP @FIN
+  @CIERTO:
+  MOV AX,1
+  @FIN:
+END;
+
+PROCEDURE Pantalla.Salvar;
+BEGIN
+ SalvaX:=WhereX;
+ SalvaY:=Wherey;
+ TamBufferVideo:=XPant*YPant*2;
+ GetMem(PtrSalva,TamBufferVideo);
+ IF Pantalla.Monocromo THEN SegmenVid:=$B800 ELSE
+                   SegmenVid:=$B000;
+ PtrVideo:=Ptr(SegmenVid,0);
+ MOVE(PtrVideo^,PtrSalva^,TamBufferVideo)
+END;
+
+
+PROCEDURE Pantalla.Recuperar;
+BEGIN
+Move(PtrSalva^,PtrVideo^,TamBufferVideo);
+FreeMem(PtrSalva,TamBufferVideo);
+GotoXY(SalvaX,SalvaY)
+END;
+
+PROCEDURE Pantalla.Mostrar;
+BEGIN
+Move(PtrSalva^,PtrVideo^,TamBufferVideo);
+GotoXY(SalvaX,SalvaY)
+END;
+
+PROCEDURE Pantalla.Inicializar(x,y:Integer);
+BEGIN
+XPANT:=X;
+YPANT:=Y;
+END;
+
+{* * * * * * * * * * * * * * *FIN DEFINICION CLASE PANTALLA * * * * * * * * *}
+

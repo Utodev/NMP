@@ -1,0 +1,66 @@
+UNIT REDIRECT;
+
+INTERFACE
+
+ USES DOS;
+ PROCEDURE SetOutput(Fich:PathStr);
+ PROCEDURE CancelOutput;
+
+IMPLEMENTATION
+
+
+ PROCEDURE SetOutput(Fich:PathStr);
+ BEGIN
+  Fich:=Fich+#0;
+  ASM
+   PUSH DS
+   MOV AX,SS
+   MOV DS,AX
+   LEA DX,FICH[1]
+   MOV AH,3CH
+   INT 21H
+   POP DS
+   JNC @@1
+   RET
+   @@1:
+   PUSH AX
+   MOV BX,AX
+   MOV CX,OUTPUT.FILEREC.HANDLE
+   MOV AH,46H
+   INT 21H
+   MOV AH,3EH
+   POP BX
+   JNC @@2
+   RET
+   @@2:
+   INT 21H
+  END;
+ END;
+
+ PROCEDURE CancelOutput;
+ VAR Nombre:String[4];
+ BEGIN
+  Nombre:='CON'+#0;
+  ASM
+  PUSH DS
+  MOV AX,SS
+  MOV DS,AX
+  LEA DX,NOMBRE[1]
+  MOV AX,3D01H
+  INT 21H
+  POP DS
+  JNC @@1
+  RET
+  @@1:
+  PUSH AX
+  MOV BX,AX
+  MOV CX,OUTPUT.FILEREC.HANDLE
+  MOV AH,46H
+  INT 21H
+  MOV AH,3EH
+  POP BX
+  INT 21H
+  END
+ END;
+
+END.

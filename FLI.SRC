@@ -1,0 +1,300 @@
+
+PROCEDURE UNPACK_LC(VAR FTE); Assembler;
+ASM
+ PUSH DS
+ CLD
+ LDS SI,[FTE]
+ MOV AX,0A000h
+ MOV ES,AX
+ LODSW          (* Cargo Skip *)
+ MOV DX,AX
+ LODSW          (* Cargo lineas a cambiar *)
+ MOV CX,AX
+ @BUC_LINE:
+ PUSH CX
+
+ (* Voy a calcular la posici¢n inicial de esta l¡nea,  320 x SKIP *)
+
+ MOV DI,DX
+ SHL DI,8   (* DI contiene ahora SKIPx256 *)
+ MOV AX,DX
+ SHL AX,6   (* AX contiene ahora SKIPx64  *)
+ ADD DI,AX  (* DI contiene SKIP x 64 + SKIP x 256 = SKIP x (64+256)= SKIP * 320 *)
+            (* Eso es m s r pido que un MUL o IMUL *)
+ LODSB      (* Leo el n£mero de packets *)
+ OR AL,AL
+ JZ @NOPACKETS
+ XOR CH,CH
+ MOV CL,AL      (* Los pongo en CX *)
+ @BUC_PACKETS:
+ PUSH CX
+ LODSW          (* leo SkipCOunt y Size_Count (AL y AH respec.) *)
+ MOV BX,AX
+ XOR BH,BH
+ ADD DI,BX      (* Salto tantos bytes como SkipCount dice *)
+
+ (* Ahora he de comprobar si Size_Count es >0 *)
+
+ MOV BL,AH
+ AND BL,080h    (* Si es mayor que 0 tiene el primer bit a 1 *)
+ JZ @ESMAYOR
+
+@ESMENOR:
+
+ MOV CX,0100h
+ SHR AX,8
+ SUB CX,AX      (* Size_Count:=256-byte(SizeCount) *)
+ LODSB          (* Cargo valor a STOREar *)
+ REP STOSB
+ JMP @CONTINUA
+
+@ESMAYOR:
+ XOR CX,CX
+ MOV CL,AH
+ REP MOVSB
+
+@CONTINUA:
+ POP CX
+ LOOP @BUC_PACKETS
+@NOPACKETS:
+ POP CX
+ INC DX
+ LOOP @BUC_LINE
+ POP DS
+END;
+
+PROCEDURE UNPACK_RUN(VAR FTE); Assembler;
+ASM
+ PUSH DS
+ CLD
+ LDS SI,[FTE]
+ MOV AX,0A000h
+ MOV ES,AX
+ XOR BX,BX
+ XOR DX,DX      (* Skip=0 *)
+ MOV CX,200     (* Lineas a cambiar =200 *)
+
+ @BUC_LINE:
+ PUSH CX
+
+ (* Voy a calcular la posici¢n inicial de esta l¡nea,  320 x SKIP *)
+
+ MOV DI,DX
+ SHL DI,8   (* DI contiene ahora SKIPx256 *)
+ MOV AX,DX
+ SHL AX,6   (* AX contiene ahora SKIPx64  *)
+ ADD DI,AX  (* DI contiene SKIP x 64 + SKIP x 256 = SKIP x (64+256)= SKIP * 320 *)
+            (* Eso es m s r pido que un MUL o IMUL *)
+
+ LODSB      (* Leo el n£mero de packets *)
+ OR AL,AL
+ JZ @NOPACKETS
+ XOR CH,CH
+ MOV CL,AL      (* Los pongo en CX *)
+ @BUC_PACKETS:
+ PUSH CX
+ LODSB          (* Size_Count (AL) *)
+
+ (* Ahora he de comprobar si Size_Count es >0 *)
+
+ MOV BL,AL
+ AND BL,080h    (* Si es mayor que 0 tiene el primer bit a 1 *)
+ JZ @ESMAYOR
+
+@ESMENOR:
+
+ MOV CX,0100h
+ MOV BL,AL
+ SUB CX,BX      (* Size_Count:=256-byte(SizeCount) *)
+ REP MOVSB
+ JMP @CONTINUA
+
+@ESMAYOR:
+ XOR CX,CX
+ MOV CL,AL
+ LODSB
+ REP STOSB
+
+@CONTINUA:
+ POP CX
+ LOOP @BUC_PACKETS
+@NOPACKETS:
+ POP CX
+ INC DX
+ LOOP @BUC_LINE
+ POP DS
+END;
+(* REQUIERE SETPAL, ESPERABARRIDO, MOVEW, FillWord, keypressed,  CPU 286 *)
+(* SUPONE QUE EL MODO 13h est  establecido *)
+
+VAR FLI_HEADER : RECORD
+                  Size:LongInt;
+                  Magic:Word;
+                  Frames:Word;
+                  Width,height:Word;
+                  PixelDepth:Word;
+                  Flags:Word;
+                  Speed:Word;
+                  Next,Frit:Longint;
+                  Expand:ARRAY[0..101] OF Byte;
+                 END;
+VAR FRAME_HEADER : RECORD
+                    Size : LongInt;
+                    Magic : Word;
+                    Chunks : Word;
+                    Expand : Array [1..8] OF Byte;
+                   END;
+VAR CHUNK_HEADER : RECORD
+                    Size:Longint;
+                    ChunkType:Word
+                   END;
+VAR F:FILE;
+    VIRTUALSCR:Pointer;
+    IFRAME,ICHUNK:Word;
+    IPACKETS:Word;
+    IRetraces:Word;
+    Offset2:LongInt;
+    Ch:Char;
+    Ext:Boolean;
+    Explor,Camb:Byte;
+    L0:LongInt;
+
+PROCEDURE FLI(S:STRING;Modo:Byte);
+
+PROCEDURE R_FLI_COLOR;
+VAR PACKETS:Word;
+    SKIP:Byte;
+    CTC:Byte;
+    CTCW:Word;
+    Color0:Byte;
+    IPACKETS:Word;
+BEGIN
+ Color0:=0;
+ BR.Leer(F,PACKETS,2);
+ FOR IPACKETS:=1 TO PACKETS DO
+  BEGIN
+   BR.Leeruno(F,Skip);
+   BR.LeerUno(F,CTC);
+   IF CTC=0 THEN CTCW:=256 ELSE CTCW:=CTC;
+   INC(Color0,Skip);
+   BR.Leer(F,Pall0[3*Color0],CTCW*3);
+  END;
+ Allpalette;
+END;
+
+PROCEDURE R_FLI_BLACK;
+BEGIN
+ FillWord(VirtualScr^,32000,0);
+END;
+
+FUNCTION R_FLI_LC:Boolean;
+VAR PTR:Pointer;
+BEGIN
+ IF MaxAvail<CHunk_Header.Size-6 THEN BEGIN
+                                       R_FLI_LC:=False;
+                                       Exit
+                                      END ELSE R_FLI_LC:=True;
+ GetMem(PTR,CHunk_Header.Size-6);
+ BR.Leer(F,PTR^,CHunk_Header.Size-6);
+ UNPACK_LC(PTR^);
+ FreeMem(PTR,CHunk_Header.Size-6);
+END;
+
+FUNCTION R_FLI_BRUN:Boolean;
+VAR PTR:Pointer;
+BEGIN
+ IF MaxAvail<CHunk_Header.Size-6 THEN BEGIN
+                                       R_FLI_BRUN:=False;
+                                       Exit
+                                      END ELSE R_FLI_BRUN:=True;
+ GetMem(PTR,CHunk_Header.Size-6);
+ BR.Leer(F,PTR^,CHunk_Header.Size-6);
+ UNPACK_RUN(PTR^);
+ FreeMem(PTR,CHunk_Header.Size-6);
+END;
+
+
+
+
+PROCEDURE R_FLI_COPY;
+BEGIN
+ BR.Leer(F,VirtualScr^,64000);
+END;
+
+
+LABEL PATRAS;
+VAR First:Byte;
+    L2:Longint;
+    W:Word;
+
+BEGIN
+ Assign(F,S);
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      Exit;
+                     END;
+ Flags[13]:=0;
+ BR.Inicializar(F);
+ VirtualScr:=Ptr($a000,0);
+ First:=1;
+ BR.Leer(F,FLI_HEADER,SizeOf(FLI_HEADER));
+ PATRAS:
+ FOR IFrame:=First TO FLI_HEADER.Frames+Modo DO
+  BEGIN
+   Flags[4]:=IFrame;
+   IF IFrame=2 THEN Offset2:=BR.PosFich(F);
+   L0:=BR.PosFich(F);
+   IF BTST(Flags[0],4) THEN PR_Input;
+   BR.Leer(F,FRAME_HEADER,SizeOf(FRAME_HEADER));
+   FOR ICHUNK:=1 TO FRAME_HEADER.Chunks DO
+    BEGIN
+     BR.Leer(F,Chunk_Header,SizeoF(Chunk_Header));
+     L2:=BR.PosFich(F);
+     Case CHUNK_HEADER.ChunkType OF
+      11:R_FLI_COLOR;
+      12:IF NOT R_FLI_LC THEN BEGIN
+                               Flags[13]:=2;
+                               Close(F);
+                               Exit
+                              END;
+      13:R_FLI_BLACK;
+      15:IF NOT R_FLI_BRUN THEN BEGIN
+                                 Flags[13]:=2;
+                                 Close(F);
+                                 Exit
+                                END;
+      16:R_FLI_COPY;
+     END;
+     BR.Colocar(F,L2+CHUNK_HEADER.Size-6);
+     Hotkey;
+     IF getKey<>0 THEN BEGIN
+                        Close(F);
+                        Exit;
+                       END;
+    END;
+    ASM
+    MOV CX,FLI_HEADER.SPEED
+    MOV   DX,3DAh
+@@0:
+@@1:
+    IN    AL,DX
+    AND   AL,08h
+    JNZ   @@1
+@@2:
+    IN    AL,DX
+    AND   AL,08h
+    JZ    @@2
+    LOOP @@0
+   END;
+   BR.Colocar(F,L0+FRAME_HEADER.Size);
+  END;
+ IF Modo=1 THEN BEGIN
+                 BR.Colocar(F,Offset2);
+                 First:=2;
+                 GOTO PATRAS;
+                END;
+ Close(F);
+END;
+
+

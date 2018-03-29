@@ -1,0 +1,13 @@
+PROCEDURE DescarTecla; Assembler;
+ASM
+  MOV AH,1
+  INT 16h
+  JZ @NADA
+  @BUC:
+  MOV AH,0
+  INT 16h
+  MOV AH,1
+  INT 16h
+  JNZ @BUC
+  @NADA:
+END;

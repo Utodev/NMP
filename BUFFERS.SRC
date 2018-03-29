@@ -1,0 +1,94 @@
+CONST BuffSize=512;
+
+
+(* El tama¤o del buffer ha de ser mayor o igual que el tama¤o *)
+(* de la variable m s grande que se vaya a leer del fichero   *)
+
+TYPE
+BufferRd=Object
+
+ Buff:ARRAY[0..BuffSize-1] OF Char;
+ BuffPoi:Word;
+ BuffTam:Word;
+
+ PROCEDURE Inicializar(VAR F:File);
+ PROCEDURE Leer(VAR F:File;VAR A;Tam:Word);
+ PROCEDURE LeerUno(VAR F:File;VAR A);
+ FUNCTION EOFL(VAR F:File):Boolean;
+ PROCEDURE Colocar(VAR F:File;Posic:LongInt);
+ FUNCTION PosFich(VAR F:FILE):LongInt;
+
+END;
+
+PROCEDURE BufferRd.Inicializar(VAR F:File);
+BEGIN
+ BuffPoi:=0;
+ BlockRead(F,Buff,BuffSize,BuffTam);
+END;
+
+
+PROCEDURE BufferRd.Leer( VAR F:File; VAR A; Tam:Word );
+VAR Aux:Word;
+    Pos:Longint;
+BEGIN
+ IF Tam>BuffSize THEN BEGIN
+                       Pos:=FilePos(F);
+                       Seek(F,Pos-BuffTam+BuffPoi);
+                       BlockRead(F,A,Tam,BuffTam); (* Bufftam por poner algo *)
+                       BlockRead(F,Buff,BuffSize,Bufftam);
+                       BuffPoi:=0;
+                       Exit
+                      END;
+ IF BuffPoi>=BuffTam THEN BEGIN
+                           BlockRead(F,Buff,BuffSize,BuffTam);
+                           BuffPoi:=0
+                          END;
+ IF Tam+BuffPoi>BuffTam THEN BEGIN
+                              Aux:=BuffTam-BuffPoi;
+                              Move(Buff[BuffPoi],Buff[0],Aux);
+                              BlockRead(F,Buff[Aux],BuffSize-Aux,BuffTam);
+                              Inc(BuffTam,Aux);
+                              BuffPoi:=0
+                             END;
+ Move(Buff[BuffPoi],A,Tam);
+ Inc(BuffPoi,Tam)
+END;
+
+PROCEDURE BufferRd.LeerUno( VAR F:File; VAR A);
+VAR Aux:Word;
+    Pos:Longint;
+BEGIN
+ IF BuffPoi>=BuffTam THEN BEGIN
+                           BlockRead(F,Buff,BuffSize,BuffTam);
+                           BuffPoi:=0
+                          END;
+ char(a):=Buff[BuffPoi];
+ Inc(BuffPoi)
+END;
+
+PROCEDURE BufferRd.Colocar(VAR F:FILE;Posic:LongInt);
+VAR FP:LongInt;
+BEGIN
+ FP:=FilePos(F);
+ IF (Posic<=FP) AND (Posic>=FP-BuffTam) THEN BuffPoi:=BuffTam-FP+Posic
+  ELSE
+   BEGIN
+    Seek(F,Posic);
+    BlockRead(F,Buff,BuffSize,BuffTam);
+    BuffPoi:=0
+   END;
+END;
+
+
+
+FUNCTION BufferRd.EOFL(VAR F:File):Boolean;
+VAR Aux:Boolean;
+BEGIN
+ Aux:=(EOF(F) AND (BuffPoi>=BuffTam));
+ EOFL:=Aux;
+END;
+
+FUNCTION BufferRd.PosFich(VAR F:FILE):LongInt;
+BEGIN
+ PosFich:=FilePos(F)-BuffTam+BuffPoi;
+END;

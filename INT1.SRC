@@ -1,0 +1,2736 @@
+
+
+VAR BITMAP:ARRAY[0..127] OF BYte;
+
+PROCEDURE INITTALK;
+VAR S:SEARCHREC;
+    B:Byte;
+    F:FILE;
+    BITMAP2:ARRAY[0..127] OF BYte;
+    ST:String[12];
+BEGIN
+ FillChar(BITMAP,128,0);
+ St:='*.TLK';
+ IF ISPACKED THEN BuscaPrimero(St) ELSE Findfirst('*.TLK',ANYFILE,S);
+ WHILE ((DosError=0) AND NOT ISPACKED) OR ((St<>'') AND ISPACKED) DO
+  BEGIN
+   IF ISPACKED THEN S.Name:=St;
+   Assign(F,S.NAME);
+   Reset(F,1);
+   BlockRead(F,B,1);
+   Seek(F,1+B*4+129);
+   BlockRead(F,Bitmap2,128);
+   Close(F);
+   FOR B:=0 TO 127 DO BITMAP[B]:=BITMAP[B] OR BITMAP2[B];
+   IF ISPACKED THEN Buscasiguiente(St) ELSE FindNext(S)
+  END;
+ IF ISPACKED THEN ACABABUSQUEDA;
+END;
+
+
+TYPE SETOFCHAR=SET OF CHAR;
+PROCEDURE GetOddMessage(N:Word);
+TYPE INDICE=RECORD
+             L:WOrd;
+             Off:Longint
+            END;
+VAR F1:FILE;
+    I:Indice;
+    S:String;
+BEGIN
+ Assign(F1,'M.IDX');
+ Reset(F1,1);
+ IF FileSize(F1)<=N*6 THEN BEGIN
+                            Close(F1);
+                            ClearOdd;
+                            Exit;
+                           END;
+ Seek(F1,N*6);
+ BlockRead(F1,I,6);
+ Close(F1);
+ Assign(F1,'M.PAK');
+ Reset(F1,1);
+ Seek(F1,I.Off);
+ OddStr.Len:=I.L;
+ BlockRead(F1,OddStr.TXT,I.L);
+ Close(F1);
+ XOROddStr;
+END;
+
+PROCEDURE GetOddWrite_(Proceso:Byte;W:Word);
+VAR F:FILE;
+    Offs:Longint;
+BEGIN
+ Assign(F,STRS(Proceso)+'.IDX');
+ Reset(F,1);
+ Seek(F,W*4);
+ BlockRead(F,Offs,4);
+ Close(F);
+ Assign(F,STRS(Proceso)+'.PAK');
+ Reset(F,1);
+ Seek(F,Offs);
+ BlockRead(F,OddStr.len,2);
+ BlockRead(F,OddStr.txt,oddstr.len);
+ Close(F);
+ XOrOddstr;
+END;
+
+
+
+PROCEDURE OUTXYF(XX,YY:Word;St:string); forward;
+
+PROCEDURE BOSS;
+VAR S:String;
+BEGIN
+ ASM
+  MOV AX,3
+  INT 10h
+ END;
+ Cursoron;
+ Write('C:\>');
+ IF AdlibPresent THEN Silence;
+ SetIntVec(TIMERINTR,@BIOStimerHandler);
+ NoSound;
+ IF Readkey=#27 THEN BEGIN
+                      chdir('\');
+                      Error(34)
+                     END;
+ SetIntVec(TIMERINTR, @TimerHandler);
+ SetMode(Flags[27]);
+END;
+
+
+FUNCTION ifParse(PR:Byte):bOOLEAN; Forward;
+
+{$f+}
+PROCEDURE PR_INPUT;
+BEGIN
+ IF RetardoPI>Flags[26] THEN BEGIN
+                              ifParse(64);
+                             END;
+END;
+{$f-}
+
+
+VAR Xs,Ys:Word;
+    AUX:Byte;
+    H,M,S,DW:Word;
+    xa:char;
+    XCV:Boolean;
+    Code:Word;
+    SetS:Word;
+    CNX:Conexiones;
+    ChK:Char;
+    Poi:Word;
+    SS,SF:String;
+    PBase:TablaProceso;
+    DosEx:Word;
+    W,W2:palabra;
+    X0,Y0,X,Y:Word;
+
+
+
+FUNCTION ReadStr(VAR S:STRING;  (* Cadena a leer *)
+                      X,Y:Word; (* Coordenadas base *)
+                      LONG:Byte; (* longitud m†xima *)
+                      SALIDA:byte; (*1 s¢lo enter, 2 enter o esc *)
+                      VALIDAS:SETOFCHAR; (* Caracteres v†lidos *)
+                      INPUT:Boolean)  (* Si true admite F1-F9 *)
+                      :Char; (* DEvuelve #27 o #13 *)
+VAR Key:Word;
+    PixelLength:Word;
+    ch:char;
+    extend:boolean;
+    explor:byte;
+    Cursor:Byte;
+    Camb:Byte;
+
+
+PROCEDURE PUTCURSOR(Color:Byte);
+VAR l,I:Byte;
+    Desp:Word;
+BEGIN
+ IF Cursor=byte(s[0])+1 THEN L:=width[31]
+                        ELSE L:=width[byte(S[CURSOR])];
+ Desp:=GetPixelLength(S,Cursor-1);
+ FOR I:=0 TO L-1 DO CASE VideoMode OF
+                     1:Mem[$a000:(Y+FONTHEIGTH-1)*320+X+Desp+I]:=color;
+                     2..8:NMPTW2.PutPixel(X+Desp+I,Y+FONTHEIGTH-1,color);
+                     9..11:NMPVESA.PutPixel(X+Desp+I,Y+Fontheigth-1+VesaActivePage,color)
+                    END;
+END;
+
+PROCEDURE CLEARLINE(DX:Word);
+VAR I:Byte;
+BEGIN
+ CASE VideoMode OF
+  2..8:NMPTW2.ClearWindow(X+DX,Y,Win[Flags[24]].XF-X+1-DX,FONTHEIGTH,Colors[0]);
+  1:FOR I:=0 TO FONTHEIGTH-1 DO FillChar(Mem[$a000:320*(Y+I)+X+DX],Win[Flags[24]].XF-X+1-DX,Colors[0]);
+  9..11:NMPVESA.Rectangle(X+DX,Y,Win[Flags[24]].XF-X+1-DX+VesaActivePage,FONTHEIGTH,Colors[0]);
+ END;
+END;
+
+BEGIN
+ Cursor:=1;
+ REPEAT
+  OUTXYF(X,Y,S);
+  PUTCURSOR(Colors[1]);
+  REPEAT
+   IF (BTST(Flags[0],4)) AND (VALIDAS<>['0'..'9']) THEN PR_INPUT;
+   IF INPUT THEN DEC(Timeout);
+   Key:=GetKey;
+  UNTIL ((Key<>0) OR (Timeout=0));
+  Explor:=Hi(key);
+  ch:=char(system.lo(key));
+  extend:=hi(key)<>0;
+  if Ch='ß' THEN IF DEBUG THEN DEBUG2:=True;
+  IF (Ch IN Validas) AND (byte(S[0])<>LONG) THEN
+   IF Width[byte(Ch)]+GetPixelLength(S,byte(S[0]))<WIN[flags[24]].XF-X+1 THEN
+   BEGIN
+    PutCursor(Colors[0]);
+    S:=Copy(S,1,Cursor-1)+Ch+Copy(S,Cursor,255);
+    Inc(Cursor);
+    IF GetPixelLength(S,byte(S[0]))+width[31]>=WIN[flags[24]].XF-X+1 THEN DEC(Cursor);
+    PutCursor(Colors[1]);
+   END;
+  IF CH=#27 THEN BEGIN
+                  Putcursor(Colors[0]);
+                  S:='';
+                  Cursor:=1;
+                  Clearline(0);
+                  Putcursor(Colors[1]);
+                 END;
+  IF (Ch=#8) AND (Cursor<>1) THEN BEGIN
+                                   PUTCURSOR(Colors[0]);
+                                   S:=Copy(S,1,cursor-2)+Copy(S,cursor,255);
+                                   dec(cursor);
+                                   clearline(getPixelLength(S,cursor-1));
+                                   putcursor(Colors[1]);
+                                  END;
+  IF Extend THEN CASE Explor OF
+                  75:IF Cursor<>1 THEN BEGIN
+                                        PUTCURSOR(Colors[0]);
+                                        DEC(Cursor);
+                                        PUTCURSOR(Colors[1]);
+                                       END;
+                  77:IF Cursor<>byte(S[0])+1 THEN BEGIN
+                                                   PutCursor(Colors[0]);
+                                                   INC(Cursor);
+                                                   IF cursor=byte(s[0])+1 THEN
+                                                    IF GetPixelLength(S,byte(S[0]))+width[31]>=WIN[flags[24]].XF-X+1
+                                                    THEN DEC(Cursor);
+                                                   PUTCURSOR(Colors[1]);
+                                                  END;
+                  68:Error(0);
+                  83:IF Cursor<>byte(S[0])+1 THEN BEGIN
+                                                   Putcursor(Colors[0]);
+                                                   S:=Copy(S,1,cursor-1)+Copy(S,cursor+1,255);
+                                                   Clearline(getpixellength(s,cursor-1));
+                                                   PUTCURSOR(Colors[1]);
+                                                  END;
+                  72,80:IF Savefrase<>'' THEN BEGIN
+                                               Putcursor(Colors[0]);
+                                               s:=Savefrase;
+                                               clearline(0);
+                                               cursor:=byte(s[0])+1;
+                                               Putcursor(Colors[1])
+                                              END;
+                  79:BEGIN
+                      Putcursor(Colors[0]);
+                      Cursor:=byte(S[0])+1;
+                       IF cursor=byte(s[0])+1 THEN
+                       IF GetPixelLength(S,byte(S[0]))+width[31]>=WIN[flags[24]].XF-X+1 THEN DEC(Cursor);
+                      Putcursor(Colors[1]);
+                     END;
+                  71:BEGIN
+                      Putcursor(Colors[0]);
+                      Cursor:=1;
+                      Putcursor(Colors[1]);
+                     END;
+                  59..67:IF INPUT THEN IF FNT[Explor-58]<>'' THEN
+                            BEGIN
+                             ClearLine(0);
+                             Putcursor(Colors[0]);
+                             S:=FNT[Explor-58];
+                             OUTXYF(X,Y,S);
+                             Ch:=#13
+                            END;
+                  117:Error(32);
+                END;
+ IF INPUT AND (Ch=#13) AND (S='') THEN CH:=#0;
+ UNTIL ((salida=1) AND (CH=#13)) OR ((Salida=2) AND (Ch IN [#13,#27]))
+  OR ((Timeout=0) AND INPUT);
+ ReadStr:=Ch;
+ PUTCURSOR(Colors[0]);
+END;
+
+
+PROCEDURE CHECKSTR(O:Word);
+BEGIN
+ IF NUMSTRING=256 THEN Error(23) ELSE
+  IF O>NUMSTRING THEN Error(23)
+END;
+
+PROCEDURE ScrollTW;
+VAR Startline:WOrd;
+    I:Word;
+BEGIN
+Startline:=ActStart DIV _Widthbytes;
+(* Esto es porque C4_Move trabaja sobre toda la RAM de video y no s¢lo *)
+(* sobre la p†gina activa *)
+ WITH Win[Flags[24]] DO
+  BEGIN
+   IF NOT BTST(Flags[0],7) THEN C4_Move(X0,StartLine+Y0+fontheigth+2,StartLine+Y0,XF-X0+1,YF-Y0-FONTHEIGTH-1)
+                           ELSE FOR I:=StartLine+Y0+fontheigth+2 TO StartLine+YF DO
+                                      C4_Move(X0,I,I-(fontheigth+2),XF-X0+1,1);
+  ClearWindow(X0,YF-FONTHEIGTH-1,XF-X0+1,fontheigth+2,Colors[0])
+ END;
+ MoveTo(Win[Flags[24]].X0,GetY-(fontheigth+2));
+END;
+
+
+
+PROCEDURE Scroll13;
+(*Hace scroll*)
+
+VAR Y:Word;
+    P1,P2:Pointer;
+
+BEGIN
+ FOR Y:=Win[Flags[24]].Y0 TO Win[Flags[24]].YF-(fontheigth+2) DO
+  BEGIN
+   P1:=Ptr($A000,320*Y+Win[Flags[24]].X0);
+   P2:=Ptr($A000,320*(Y+(fontheigth+2))+Win[Flags[24]].X0);
+   MoveD(P2^,P1^,Win[Flags[24]].XF-Win[Flags[24]].X0+1);
+  END;
+ MoveTo(Win[Flags[24]].X0,GetY-(fontheigth+2));
+ FOR Y:=Win[Flags[24]].YF-FONTHEIGTH-1 TO Win[Flags[24]].YF DO
+  BEGIN
+   P1:=Ptr($A000,320*Y+win[Flags[24]].X0);
+   FillD(P1^,Win[Flags[24]].XF-Win[Flags[24]].X0+1,Colors[0])
+  END;
+END;
+
+PROCEDURE ScrollVESA;
+VAR Ancho:Word;
+    P:Pointer;
+    X0,Y0:Word;
+    WinLines,Lines:Word;
+    Alto:Word;
+    Memory:Word;
+BEGIN
+ Ancho:=Win[Flags[24]].XF-Win[Flags[24]].X0+1;
+ Alto:=Win[Flags[24]].yF-Win[Flags[24]].y0+1;
+ IF MaxAvail>65000 THEN Memory:=65000 ELSE Memory:=MaxAvail;
+ WinLines:=alto-fontheigth-2;
+ X0:=Win[Flags[24]].X0;
+ Y0:=Win[Flags[24]].Y0;
+ getMem(P,Memory);
+ Lines:=Memory DIV ancho; (* Nß de l°neas que caben en el puntero *)
+ REPEAT
+  if lines>winlines then lines:=winlines;
+  NMPVESA.GetImage(X0,Y0+fontheigth+2+VesaActivePage,ancho,lines,P^);
+  IF BTST(Flags[0],7) THEN EsperaBarrido;
+  NMPVESA.PutImage(X0,Y0+VesaActivePage,ancho,lines,P^,0);
+  dec(winlines,lines);
+  inc(y0,lines);
+ UNTIL Winlines=0;
+ freemem(p,memory);
+ MoveTo(Win[Flags[24]].X0,GetY-(fontheigth+2));
+ NMPVESA.Rectangle(x0,Win[Flags[24]].YF-FONTHEIGTH-2+VesaActivePage,ancho,fontheigth+2,Colors[0]);
+END;
+
+PROCEDURE Scroll;
+BEGIN
+ CASE VideoMode oF
+  1:Scroll13;
+  2..8:ScrollTW;
+  9..11:ScrollVESA;
+ END;
+END;
+
+PROCEDURE LeerConex;
+VAR Code:Integer;
+    F:FILE;
+    S:String;
+    J:Byte;
+    KK:ARRAY[1..1026] OF Char;
+BEGIN
+J:=0;
+FillChar(Conections,256*4,0);
+Assign(F,'L.DAT');
+Reset(F,1);
+WHILE NOT EOF(F) DO
+ BEGIN
+  BlockRead(F,KK,1026); (*Texto*)
+  BlockRead(F,S,256); (*Tira*)
+  XORST(S);
+  WHILE Pos('  ',S)<>0 DO S:=Copy(S,1,Pos('  ',S))+Copy(S,Pos('  ',S)+2,255);
+  New(Conections[J]);
+  FOR I:=0 TO 19 DO Conections[J]^[I]:=0;
+  IF S<>'' THEN
+   BEGIN
+    S:=' '+S+' ';
+    WHILE S<>' ' DO
+     BEGIN
+      S[Pos(' ',S)]:='˛';
+      W:=Copy(S,Pos('˛',S)+1,Pos(' ',S)-1-Pos('˛',S));
+      S:=Copy(S, Pos(' ',S)+1,255);
+      W2:=Copy(S,1,pos(' ',S)-1);
+      Conections[J]^[Numerode(verbos,W)]:=Valss(W2);
+      S:=Copy(S,pos(' ',S),255);
+     END;
+   END;
+  INC(J);
+ END;
+Close(F);
+END;
+
+PROCEDURE PLAY(TEMA:PAlabra);
+VAR F:FILE;
+    Tam:Word;
+    Code:Integer;
+    W:Word;
+    N:RECORD dur,frec:Word; END;
+
+BEGIN
+ VAL(TEMA,LastMusic,code);
+ IF BTST(Flags[0],12) THEN BEGIN
+                   IF W=LastMusic THEN Exit; (* Si est† sonando no hago nada *)
+                   BCLR(Flags[0],12);
+                   Nosound;
+                  END;
+ Assign(F,TEMA+'.SND');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      Exit;
+                     END;
+ Flags[13]:=0;
+ IF BufferMusic<>NIL THEN BEGIN
+                           FreeMem(BufferMusic,SizeLastMusic);
+                           BufferMusic:=NIL
+                          END;
+ SizeLastMusic:=FileSize(F);
+ GetMem(BufferMusic,SizeLastMusic);
+ BlockRead(F,BufferMusic^,SizelastMusic);
+ Close(F);
+ SoundDAT.Actual[1]:=BufferMusic;
+ SoundDat.Size[1]:=SizelastMusic;
+ W:=0;
+ WHILE W<SoundDat.Size[1] DO
+  BEGIN
+   MOVE(pointer(longint(buffermusic)+W)^,N,4);
+   IF N.dur=0 THEN BEGIN
+                    Move(pointer(longint(buffermusic)+W+4)^,pointer(longint(buffermusic)+W)^,SoundDat.Size[1]-4-W);
+                    Dec(SoundDat.Size[1],4);
+                   END ELSE INC(W,4);
+  END;
+ SoundDat.Size[2]:=SoundDat.Size[1];
+ Time[1]:=1;
+ BSET(Flags[0],12);
+END;
+
+PROCEDURE PLAYSB(S:palabra;P2:Word);
+VAR F:File;
+    Leidos:Word;
+    P:InstType;
+    W:Word;
+
+BEGIN
+ VAL(S,W,Code);
+ IF BTST(Flags[0],12) THEN BEGIN
+                   IF W=LastMusic THEN Exit;  (* Si est† sonando no hago nada *)
+                   BCLR(Flags[0],12);
+                   Silence;
+                  END;
+ {InitCard;}
+ Flags[13]:=0;
+ lastMusic:=W;
+ Assign(F,S+'.SBM');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      Exit
+                     END;
+ FillChar(NotaAct,SizeOf(NotaAct),0);
+ BlockRead(F,Head,sizeof(header));
+ IF BufferMusic<>NIL THEN BEGIN
+                           FreeMem(BufferMusic,SizeLastMusic);
+                           BufferMusic:=NIL;
+                          END;
+ SizeLastMusic:=FileSize(F)-SizeOf(Head);
+ GetMem(BufferMusic,SizeLastMusic);
+ BlockRead(F,BufferMusic^,SizelastMusic);
+ Close(F);
+ (* Cargar instrumentos *)
+ INoutRes:=0;
+ Assign(F,'SBLASTER.DRV');
+ System.Reset(F,1);
+ IF System.IOResult<>0 THEN Error(15);
+ canales_acabados:=0;
+ FOR J:=1 TO 9 DO
+  IF head.inst[J]<>0 THEN
+   BEGIN
+    Inc(Canales_Acabados);
+    System.Seek(F,1024+16*(Head.Inst[J]-1));
+    System.BlockRead(F,P,16);
+    LoadInstrument(J,P);
+   END;
+ System.Close(F);
+
+ IF P2<>0 THEN FOR J:=1 TO 9 DO BEGIN
+                                 GetVolume(J,VolumeFM[J]);
+                                 SetVolume(J,63);
+                                 FadingFMIn:=True;
+                                END ELSE FadingFMIn:=False;
+ FadingFMOut:=False;
+
+ FOR J:=1 TO 9 DO Time[J]:=1;
+
+ (* paso offset de fichero a offsets de memoria *)
+ FOR J:=1 TO 9 DO DEC(Head.Pos[J],SizeOf(head));
+
+ FOR J:=1 TO 9 DO longint(SoundDat.Inicial[J]):=longint(BufferMusic)+Head.Pos[J];
+
+ MoveD(SoundDat.Inicial,SoundDat.Actual,Sizeof(Sounddat.Inicial));
+
+ FOR J:=1 TO 8 DO BEGIN
+                   IF Head.Inst[J+1]<>0 THEN SoundDat.Size[J]:=Head.Pos[J+1]-Head.Pos[J]
+                                        ELSE SoundDat.Size[J]:=SizeLastMusic-Head.Pos[J];
+                  END;
+
+ SoundDat.Size[9]:=SizelastMusic-Head.Pos[9];
+ Canales_totales:=Canales_Acabados;
+ BSET(Flags[0],12);
+
+END;
+
+PROCEDURE ICONMASK(S:Palabra;iconum:Word);
+VAR P,R:^Ik;
+    F:File;
+    H:Byte;
+BEGIN
+ Flags[13]:=0;
+ IF maxAvail<2048 THEN BEGIN
+                        Flags[13]:=2;
+                        Exit
+                       END;
+ IF GetIco[iconum]=NIL THEN BEGIN
+                     Flags[13]:=3;
+                     Exit
+                    END;
+ Assign(F,S+'.ICO');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      Exit
+                     END;
+ GetMem(pointer(R),1024);
+ BlockRead(F,R^,1024);
+ Close(F);
+ GetMem(pointer(P),1024);
+ IF NOT (VideoMode IN [2..8]) THEN MoveD(R^,P^,1024) ELSE GoTweak(R^,P^,1024);
+ MoveD(getico[iconum]^,R^,1024);
+ Mix(P^,R^);
+ IF BTST(Flags[0],2) THEN EsperaBarrido;
+ CASE VideoMode OF
+  1:Segment2.PutImage(R^,getX,getY,32,32);
+  2..8:C4_PutImage(getx,gety,32,32,R);
+  9..11:NMPVESA.Putimage(getx,gety+VesaActivePage,32,32,R^,0);
+ end;
+ FreeMem(pointer(P),1024);
+ FreeMem(pointer(R),1024);
+END;
+{$IFNDEF ALCACHOFA}
+PROCEDURE TWEAK256_TYPE1(St:String;typ:Boolean);
+(* Dibuja TWK sin comprimir *)
+VAR F:FILE;
+    HEADER:RECORD ID:Byte; An,Al:Word; Pal:ARRAY[0..767] OF byte END;
+    P:Pointer;
+    I:Word;
+    Size:Longint;
+BEGIN
+ Flags[13]:=0;
+ Assign(F,St+'.TWK');
+ Reset(F,1);
+ BR.Inicializar(F);
+ BR.Leer(F,Header,773);
+ Size:=Longint(Header.An)*longint(Header.Al);
+ IF (MaxAvail<Size) OR (Size>65528) THEN BEGIN
+                        IF MaxAvail<Header.An THEN BEGIN
+                                                    Close(F);
+                                                    Flags[13]:=2;
+                                                    Exit;
+                                                   END;
+                        GetMem(P,header.an);
+                        IF Typ THEN BEGIN
+                                     MOVED(Header.pal,Pall0,768);
+                                     Allpalette
+                                    END;
+                        WITH WIN[Flags[25]] DO
+                        FOR I:=0 TO Header.Al-1 DO
+                         BEGIN
+                          BR.Leer(F,P^,header.an);
+                          NMPTW2.C4_Putimage(X0,Y0+I,header.an,1,p)
+                         END;
+                        FreeMem(P,header.an);
+                        Close(F);
+                        Exit
+                       END;
+  GetMem(P,size);
+  BR.Leer(F,P^,Size);
+  IF Typ THEN BEGIN
+               Moved(Header.pal,pall0,768);
+               Allpalette
+              END;
+  WITH WIN[Flags[25]] DO
+   FOR i:=0 TO header.al-1 DO NMPTW2.C4_Putimage(X0,Y0+i,header.an,1,pointer(longint(p)+i*header.an));
+  Close(F);
+  FreeMem(P,Size);
+END;
+
+PROCEDURE TWK256(St:String;typ:boolean);
+(* Dibuja los twk comprimidos, si se encuentra con una sin comprimir se
+   desentiende y llama a a TWK256_TYPE1 *)
+VAR F:FILE;
+    P,Q:Pointer;
+    Size:Longint;
+    HEAD:RECORD
+     ID:Byte;
+     An,Al:Word;
+     pal:ARRAy[0..767] OF byte;
+    END;
+    B:Byte;
+    C:Byte;
+    A:Byte;
+    D:longint;
+    NA:Word;
+    KOMPRESS:BYTE;
+    FP:LongInt;
+
+VAR YY:Word;
+
+BEGIN
+ Flags[13]:=0;
+ Assign(F,St+'.TWK');
+ Reset(F,1);
+ IF IOResult<>0 THEN
+  BEGIN
+   Flags[13]:=1;
+   Exit
+  END;
+ BR.Inicializar(F);
+ BR.Leer(F,HEad,Sizeof(head));
+ Size:=longint(head.An)*longint(head.al);
+ IF Head.ID=1 THEN BEGIN
+                    Close(F);
+                    TWEAK256_TYPE1(St,typ);
+                    exit
+                   END;
+ IF (MaxAvail<Size+320)  THEN BEGIN
+                        IF MaxAvail<head.An THEN BEGIN
+                                                  Flags[13]:=2;
+                                                  Close(F);
+                                                  Exit
+                                                 END;
+                        GetMem(P,Head.An);
+                         IF Typ THEN BEGIN
+                                      MoveD(head.pal,pall0,768);
+                                      AllPalette;
+                                     END;
+                        WITH Win[Flags[25]] DO
+                          FOR YY:=0 TO Head.Al-1 DO
+                           BEGIN
+                            BR.leer(F,KOMPRESS,1);
+                            IF KOMPRESS=1 THEN
+                             BEGIN
+                              D:=0;
+                              REPEAT
+                               BR.Leer(F,A,1);
+                               IF (A AND $c0)=$c0 THEN BEGIN
+                                                        B:=A AND $3f;
+                                                        BR.Leer(F,A,1)
+                                                       END ELSE B:=1;
+                               Fillchar(pointer(longint(p)+d)^,B,A);
+                               INC(D,B);
+                              UNTIL D>=head.an;
+                             END ELSE BR.Leer(F,P^,head.an);
+                            NMPTW2.C4_Putimage(X0,y0+yy,head.an,1,p);
+                           END;
+                        FreeMem(P,Head.An);
+                        Close(F);
+                        Exit;
+                       END;
+ GetMem(P,Size);
+ getMem(Q,320);
+ D:=0;
+ NA:=0;
+ REPEAT
+  BR.Leer(F,KOMPRESS,1);
+  IF KOMPRESS=1 THEN BEGIN
+                      BR.Leer(F,Q^,320);
+                      UNPACK(Q^,pointer(longint(p)+D)^,head.an,NA);
+                      FP:=BR.PosFich(F);
+                      BR.Colocar(F,FP+NA-320);
+                     END
+                ELSE BR.Leer(F,pointer(longint(p)+D)^,head.an);
+  INC(D,longint(head.an));
+ UNTIL D>=Size;
+ FreeMem(Q,320);
+ Close(F);
+ IF Typ THEN BEGIN
+              MoveD(head.pal,pall0,768);
+              AllPalette;
+             END;
+ IF BTST(Flags[0],2) THEN EsperaBarrido;
+ Q:=P;
+ WITH Win[Flags[25]] DO
+  FOR YY:=0 TO head.Al-1 DO
+   BEGIN
+    NMPTW2.C4_PutImage(X0,Y0+YY,head.An,1,Q);
+    inc(Longint(Q),head.An);
+   END;
+ FreeMem(P,Size);
+END;
+
+{$ENDIF}
+
+
+{$I GIFDAV.PAS}
+
+
+PROCEDURE GIFVESA(St:String;Typ:Boolean);
+BEGIN
+ WITH Win[Flags[25]] DO Flags[13]:=Carga_GIF(St+'.GIF',X0,Y0,XF,YF,Typ,PalColor0,PalColorF);
+END;
+{
+
+PROCEDURE PCXVESA256(St:String;Typ:Boolean);
+TYPE ARRAY_=ARRAY[0..65534] OF Byte;
+VAR H:Byte;
+    F:FILE;
+    P:^ARRAY_;
+    Count:Word;
+    X0,Y0,XF:Word;
+    X,Y:Word;
+    A,B:Byte;
+    I:Word;
+    Siz:LongInt;
+    Size:Word;
+    An:word;
+    Buff:ARRAY[0..1023] OF Byte;
+
+
+BEGIN
+ Flags[13]:=0;
+ Assign(F,ST+'.PCX');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Assign(F,ST+'.GRF');
+                      Reset(F,1);
+                      IF IOResult<>0 THEN BEGIN
+                                           Flags[13]:=1;
+                                           Exit
+                                          END;
+                     END;
+ Siz:=FileSize(F);
+ BR.Inicializar(F);
+ IF MaxAvail<128 THEN BEGIN
+                       Flags[13]:=2;
+                       Exit
+                      END;
+ GetMem(Pointer(p),128);  (*Lectura de cabecera *)
+ BR.Leer(F,P^,128);
+ X0:=Win[Flags[25]].X0;
+ Y0:=Win[Flags[25]].Y0;
+ XF:=X0 + P^[8] + 256*P^[9] - P^[4] + 256*P^[5]-1;
+ X:=X0; Y:=y0;
+ FreeMem(P,128);
+ WITH WIN[FLAGS[25]] DO Size:=(XF-X0+1)*(YF-Y0+1);
+ Count:=128;
+
+ IF typ THEN
+  BEGIN
+   BR.Colocar(F,Siz-769);
+   BR.leer(F,I,1);
+   BR.Leer(F,Pall0,768);
+   FOR I:=0 TO 767 DO Pall0[I]:=Pall0[I] SHR 2;
+   AllPalette;
+  END;
+
+ An:=Win[Flags[25]].XF-Win[Flags[25]].X0;
+ IF XF-X0<An THEN An:=XF-X0;
+
+ IF An MOD 2=1 THEN BEGIN
+                     Inc(XF);
+                    END;
+ BR.Colocar(F,128);
+ REPEAT
+  BR.Leer(F,A,1);
+  Inc(count);
+  IF A>192 THEN
+   BEGIN
+    B:=A-192;
+    BR.Leer(F,a,1);
+    Inc(count);
+   END
+   ELSE B:=1;
+  WHILE B<>0 DO
+   BEGIN
+    Dec(b);
+    IF (X<=Win[Flags[25]].XF) AND (Y<=Win[Flags[25]].YF) THEN
+    Buff[X-X0]:=A;
+    Inc(X);
+    IF X>Xf+1 THEN
+     BEGIN
+      X:=X0;
+      NMPVESA.PutImage(X0,Y+VesaActivePage,An,1,Buff,0);
+      Inc(Y);
+     END;
+   END;
+ UNTIL (Siz<768+count) OR (Y>Win[Flags[25]].YF);
+ Close(F);
+END;}
+
+
+PROCEDURE PCX256(St:String;Typ:Boolean);
+TYPE ARRAY_=ARRAY[0..65534] OF Byte;
+VAR H:Byte;
+    F:FILE;
+    P:^ARRAY_;
+    Count:Word;
+    X0,Y0,XF:Word;
+    X,Y:Word;
+    A,B:Byte;
+    I:Word;
+    Siz:LongInt;
+    Size:Word;
+
+
+
+{    PROCEDURE PCXGOLPE;
+    VAR P:Pointer;
+        Size:Word;
+        I:WOrd;
+        WFXF:Word;
+        An:Word;
+    BEGIN
+     GetMem(P,Size);
+     An:=Win[flags[25]].XF-Win[Flags[25]].X0+1;
+     REPEAT
+      BR.Leer(F,A,1);
+      Inc(count);
+      IF A>192 THEN
+       BEGIN
+        B:=A-192;
+        BR.Leer(F,a,1);
+        Inc(count);
+       END
+       ELSE B:=1;
+      WHILE B<>0 DO
+       BEGIN
+        Dec(b);
+        IF (X<=WIN[FLAGS[25]].XF) AND (Y<=Win[Flags[25]].YF) THEN
+         Byte(pointer(longint(p)+An*(y-y0)+x-X0)^):=a;
+        Inc(X);
+        IF X>Xf THEN
+         BEGIN
+          X:=X0;
+          Inc(Y);
+         END;
+       END;
+     UNTIL (Siz<768+count) OR (Y>Win[Flags[25]].YF);
+     IF typ THEN
+      BEGIN
+       BR.Colocar(F,Siz-768);
+       BR.Leer(F,Pall0,768);
+       FOR I:=0 TO 767 DO Pall0[I]:=Pall0[I] SHR 2;
+       AllPalette;
+      END;
+     WITH WIN[Flags[25]] DO Segment2.Putimage(P^,X0,Y0,XF-X0+1,YF-Y0+1);
+     FreeMem(P,Size);
+    END;}
+
+
+
+
+BEGIN
+ IF VideoMode>8 THEN BEGIN
+                      GIFVESA(St,Typ);
+                      Exit
+                     END;
+ Flags[13]:=0;
+ Assign(F,ST+'.PCX');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Assign(F,ST+'.GRF');
+                      Reset(F,1);
+                      IF IOResult<>0 THEN BEGIN
+                                           Flags[13]:=1;
+                                           Exit
+                                          END;
+                     END;
+ Siz:=FileSize(F);
+ BR.Inicializar(F);
+ IF MaxAvail<128 THEN BEGIN
+                       Flags[13]:=2;
+                       Exit
+                      END;
+ GetMem(Pointer(p),128);  (*Lectura de cabecera *)
+ BR.Leer(F,P^,128);
+ X0:=Win[Flags[25]].X0;
+ Y0:=Win[Flags[25]].Y0;
+ XF:=X0 + P^[8] + 256*P^[9] - P^[4] + 256*P^[5];
+ X:=X0; Y:=y0;
+ FreeMem(P,128);
+ WITH WIN[FLAGS[25]] DO Size:=(XF-X0+1)*(YF-Y0+1);
+ Count:=128;
+{ IF Size<=MaxAvail THEN
+  BEGIN
+   PCXGOLPE;
+   CLose(F);
+   Exit
+  END;}
+
+ IF typ THEN
+  BEGIN
+   BR.Colocar(F,Siz-769);
+   BR.leer(F,I,1);
+   BR.Leer(F,Pall0,768);
+   FOR I:=0 TO 767 DO Pall0[I]:=Pall0[I] SHR 2;
+   AllPalette;
+  END;
+
+ BR.Colocar(F,128);
+ REPEAT
+  BR.Leer(F,A,1);
+  Inc(count);
+  IF A>192 THEN
+   BEGIN
+    B:=A-192;
+    BR.Leer(F,a,1);
+    Inc(count);
+   END
+   ELSE B:=1;
+  WHILE B<>0 DO
+   BEGIN
+    Dec(b);
+    IF (X<=Win[Flags[25]].XF) AND (Y<=Win[Flags[25]].YF) THEN
+     mem[$a000:320*y+x]:=a;
+    Inc(X);
+    IF X>Xf THEN
+     BEGIN
+      X:=X0;
+      Inc(Y);
+     END;
+   END;
+ UNTIL (Siz<768+count) OR (Y>Win[Flags[25]].YF);
+ Close(F);
+END;
+
+
+
+PROCEDURE LoadPaleta(S:Palabra;O:Byte);
+VAR F:FILE;
+    Tam:Word;
+
+BEGIN
+ Assign(F,S+'.pal');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      EXIT
+                     END;
+ Flags[13]:=0;
+ Tam:=FileSize(F) DIV 3;
+ IF Tam+O>256 THEN Tam:=256-O;
+ BlockRead(F,Pall0[O*3],Tam*3);
+ Close(F);
+ AllPalette;
+END;
+
+
+PROCEDURE FadePaleta(S:Palabra;Speed:Word);
+VAR F:FILE;
+    P:PaletteType;
+    leidos:word;
+BEGIN
+ Flags[13]:=0;
+ Assign(F,S+'.PAL');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      EXIT
+                     END;
+ BlockRead(F,P,768);
+ Close(F);
+ FADETO(P,63,Speed);
+END;
+
+PROCEDURE PICPAL(A,b:Byte;Speed:Byte);
+VAR F:FILE;
+    P:PaletteType;
+    leidos:word;
+    L:Longint;
+    S:String[10];
+BEGIN
+ IF B=0 THEN S:=STRS(A)
+        ELSE S:=STRS(A)+'_'+STRS(B);
+ Flags[13]:=0;
+ IF VideoMode IN [1,9..11] THEN Assign(F,S+'.PCX')
+                           ELSE Assign(F,S+'.TWK');
+ Reset(F,1);
+ IF (IOresult<>0) THEN IF (VideoMode IN [1,9..1]) THEN BEGIN
+                                              Assign(F,S+'.GRF');
+                                              Reset(F,1);
+                                              IF IOResult<>0 THEN BEGIN
+                                                                   Flags[13]:=1;
+                                                                   Exit
+                                                                  END
+                                             END
+                                        ELSE BEGIN
+                                              Flags[13]:=1;
+                                              Exit
+                                             END;
+ IF VideoMode IN [1,9..1] THEN BEGIN
+                      L:=FileSize(f);
+                      Seek(F,L-768);
+                     END
+                ELSE Seek(F,5);
+ BlockRead(F,P,768);
+ IF VideoMode IN [1,9..1] THEN FOR I:=0 TO 767 DO P[I]:=P[I] SHR 2;
+ Close(F);
+ FADETO(P,63,Speed);
+END;
+
+PROCEDURE INTERPRETAR(PR:Byte;VAR PO:TablaProceso;VAR P:PuntCondacto);
+forward;
+(*Ejecuta una entrada verbo-nombre*)
+
+PROCEDURE Texto(XS:String); forward;
+
+
+
+FUNCTION ifParse(PR:Byte):bOOLEAN;
+(* Idem que parse, pero devuelve un valor para IFPROCESS*)
+
+VAR Po:TablaProceso;
+
+
+         PROCEDURE Ejecuta(VAR PCC:PuntCondacto);
+         VAR PX:PuntCondacto;
+         BEGIN
+          PX:=PCC;
+
+          BREAK:=False;
+          REPEAT
+           WHILE NOT (DONE OR DESC OR ENDD OR NOTDONE OR BREAK) DO
+            BEGIN  (* Interpretar una entrada *)
+             Hotkey;
+             Interpretar(PR,PO,PX);
+             INC(Longint(PX),SizeOf(Condacto));
+            END;
+
+          IF Doall.Activo THEN
+           BEGIN
+
+            WHILE (Doall.Bucle<=255) AND (PuntObj[Doall.Bucle]<>NIL) AND
+              ((Whereat[Doall.Bucle]<>Doall.Loc) OR (Doall.Bucle=Flags[23])) DO
+             Inc(Doall.bucle);
+            IF puntObj[Doall.Bucle]=NIL THEN Doall.Bucle:=256;
+            IF Doall.Bucle>255 THEN
+             BEGIN
+              Doall.Condacto:=NIL;
+              Doall.Activo:=False;
+              Flags[19]:=Doall.Contenido;
+              Flags[9]:=Doall.Cont2;
+             END
+            ELSE BEGIN
+                  Flags[19]:=PuntObj[Doall.Bucle]^.Pal;
+                  Flags[9]:=Doall.Bucle;
+                  Done:=False;
+                  Inc(Doall.bucle);
+                  NotDone:=False;
+                  Break:=False;
+                  PX:=Doall.Condacto;
+                 END;
+           END;
+
+          UNTIL NOT Doall.Activo;
+
+           NotDone:=False;
+         END;
+
+
+VAR SaveOldProc:Integer;
+
+BEGIN
+MacroId:=0;
+INC(Recurse);
+IF Recurse=21 THEN BEGIN
+                    IF BTST(Flags[0],3) THEN Texto('Desbordamiento de pila.');
+                    Flags[13]:=3;
+                    Dec(Recurse);
+                    Exit
+                   END;
+PO:=Procesos[PR];
+IF DEBUG THEN
+ BEGIN
+  STR(PR,PRSRT);
+  IF PR=0 THEN PRSRT:='R';
+  ASSIGN(FPN,'..\'+PRSRT+'.PN');
+  System.Reset(FPN,1);
+  IF System.IOResult=0 THEN BEGIN
+                             System.BlockRead(FPN,PRNAME,11);
+                             System.Close(FPN);
+                     END ELSE PRNAME:='PROC '+PRSRT;
+ END;
+WHILE (PO<>NIL) AND NOT(BREAK OR DONE OR DESC OR ENDD) DO
+ BEGIN
+  Hotkey;
+  IF ((PO^.Verbo=Flags[18]) OR  (PO^.Verbo=255)) AND ((PO^.Nombre=flags[19]) OR (PO^.Nombre=255))
+   THEN EJECUTA(PO^.Cond);
+  PO:=PO^.sig;
+ END;
+ifParse:=((PO<>NIL) OR DONE OR DESC) AND NOT BREAK;
+IF Done AND (PR=0) THEN DDone:=True;
+Done:=False;
+NotDone:=False;
+Break:=False;
+DEC(Recurse);
+IF UntilReturn AND (PROCRETURN=PR) THEN BEGIN
+                     DEBUG2:=True;
+                     UntilReturn:=False
+                    END;
+END;
+
+PROCEDURE PressAny;
+BEGIN
+ Descartecla;
+ WHILE getkey=0 DO
+    IF BTST(Flags[0],4) THEN PR_INPUT;
+ Descartecla;
+END;
+
+
+TYPE Char16=PACKED ARRAY[1..8,1..16] OF Byte; (*Rejilla de caracter*)
+
+PROCEDURE OutTextCh(St:string);
+(*Escribe un caracter en modo gr†fico*)
+
+VAR I:Word;
+    Svek2:byte;
+    P2:^Char16;
+    Y0Y1:Word;
+    Cof:Byte;
+BEGIN
+IF getY>=Win[Flags[24]].YF-(fontheigth+2) THEN Scroll;
+Svek2:=Colors[2];
+IF Colors[1]=0 THEN Colors[2]:=0;
+FOR I:=1 TO byte(St[0]) DO
+ BEGIN
+  pointer(P2):=pointer(FontPtr);
+  INC(longint(P2),(byte(st[i])-31)*fontheigth*8);
+  X0:=GetX;
+  Y0:=GetY;
+  IF VideoMode=1 THEN
+    FOR Y:=1 TO fontheigth DO
+     BEGIN
+      Y0Y1:=320*(Y0+Y-1);
+      FOR X:=1 TO width[Byte(St[I])] DO
+       BEGIN
+        COF:=ColorOF(P2^,X,Y);
+        IF COF>2 THEN Cof:=1;
+        IF COF>0 THEN Mem[$a000:Y0Y1+X0+X-1]:=Colors[COF];
+      END
+     END
+    ELSE IF VideoMode IN [9..11] THEN
+    FOR Y:=1 TO fontheigth DO
+     BEGIN
+      Y0Y1:=Y0+Y-1;
+      FOR X:=1 TO width[Byte(St[I])] DO
+       BEGIN
+        COF:=ColorOf(P2^,X,Y);
+        IF COF>2 THEN COF:=1;
+        IF COF>0 THEN PutPixel(X0+X-1,Y0Y1,Colors[COF]);
+       END
+     END
+    ELSE
+    FOR Y:=1 TO fontheigth DO
+     BEGIN
+      Y0Y1:=Y0+Y-1;
+      FOR X:=1 TO width[Byte(St[I])] DO
+       BEGIN
+        COF:=ColorOf(P2^,X,Y);
+        IF COF>2 THEN COF:=1;
+        IF COF>0 THEN NMPTW2.PutPixel(X0+X-1,Y0Y1,Colors[COF]);
+       END
+     END;
+   Moveto(X0+width[byte(St[i])],Y0)
+ END;
+Colors[2]:=Svek2;
+END;
+
+PROCEDURE OUTF(St:string);
+(*Escribe un caracter en modo gr†fico*)
+
+VAR I:Word;
+    SveK2:byte;
+    p2:^char16;
+    cof:Byte;
+    Y0Y1:WorD;
+
+BEGIN
+Svek2:=Colors[2];
+IF Colors[1]=0 THEN Colors[2]:=0;
+FOR I:=1 TO byte(St[0]) DO
+ BEGIN
+  pointer(P2):=pointer(FontPtr);
+  INC(longint(P2),(byte(st[i])-31)*fontheigth*8);
+  X0:=getX;
+  Y0:=GetY;
+  IF VideoMode=1 THEN
+    FOR Y:=1 TO fontheigth DO
+     BEGIN
+      Y0Y1:=320*(Y0+Y-1);
+      FOR X:=1 TO width[Byte(St[I])] DO
+       BEGIN
+        COF:=ColorOf(P2^,X,Y);
+        IF COF>2 THEN COF:=1;
+        Mem[$a000:Y0Y1+X0+X-1]:=Colors[COF];
+       END;
+     END
+    ELSE IF VideoMode IN [2..8] THEN
+    FOR Y:=1 TO fontheigth DO
+     BEGIN
+      Y0Y1:=Y0+Y-1;
+      FOR X:=1 TO width[Byte(St[I])] DO
+       BEGIN
+        COF:=ColorOf(P2^,X,Y);
+        IF COF>2 THEN COF:=1;
+        NMPTW2.PutPixel(X0+X-1,Y0Y1,Colors[COF]);
+       END
+     END ELSE
+    FOR Y:=1 TO fontheigth DO
+     BEGIN
+      Y0Y1:=Y0+Y-1;
+      FOR X:=1 TO width[Byte(St[I])] DO
+       BEGIN
+        COF:=ColorOf(P2^,X,Y);
+        IF COF>2 THEN COF:=1;
+        NMPVESA.PutPixel(X0+X-1,Y0Y1+VesaActivePage,Colors[COF]);
+       END
+     END;
+   Moveto(X0+width[byte(St[i])],Y0)
+ END;
+Colors[2]:=Svek2;
+END;
+
+
+
+PROCEDURE OUTTextXYCh(XX,YY:Word;St:string);
+(*Escribe un caracter en posici¢n concreta*)
+
+VAR I:Word;
+    X00,Y00:Word;
+    svek2:byte;
+    p2:^char16;
+    COF:Byte;
+
+BEGIN
+X00:=GetX;
+Y00:=GetY;
+Svek2:=Colors[2];
+IF Colors[1]=0 THEN Colors[2]:=0;
+MoveTo(XX,YY);
+FOR I:=1 TO byte(St[0]) DO
+ BEGIN
+  pointer(P2):=pointer(FontPtr);
+  INC(longint(P2),(byte(st[i])-31)*fontheigth*8);
+  X0:=getX;
+  Y0:=GetY;
+  FOR Y:=1 TO fontheigth DO
+   FOR X:=1 TO width[byte(St[i])] DO
+    BEGIN
+     COF:=ColorOf(P2^,x,y);
+     IF COF>2 THEN COF:=1;
+     IF COF>0 THEN CASE VideoMode OF
+                    1:Mem[$a000:320*(Y0+Y-1)+X0+X-1]:=Colors[COF];
+                    2..8:NMPTW2.PutPixel(X0+X-1,Y0+Y-1,Colors[COF]);
+                    9..11:NMPVESA.PutPixel(X0+X-1,Y0+Y-1+VesaActivePage,Colors[COF])
+                   END;
+   END;
+  MoveTo(X0+width[byte(St[i])],Y0)
+ END;
+MoveTo(X00,Y00);
+Colors[2]:=svek2;
+END;
+
+PROCEDURE OUTXYF(XX,YY:Word;St:string);
+(*Escribe un caracter en posici¢n concreta*)
+
+VAR I:Word;
+    X00,Y00:Word;
+    svek2:byte;
+    P2:^char16;
+    COF:Byte;
+
+BEGIN
+X00:=GetX;
+Y00:=GetY;
+Svek2:=Colors[2];
+IF Colors[1]=0 THEN Colors[2]:=0;
+MoveTo(XX,YY);
+FOR I:=1 TO byte(St[0]) DO
+ BEGIN
+  pointer(P2):=pointer(FontPtr);
+  INC(longint(P2),(byte(st[i])-31)*fontheigth*8) ;
+  X0:=getX;
+  Y0:=GetY;
+  FOR Y:=1 TO fontheigth DO
+   FOR X:=1 TO width[byte(St[i])] DO
+    BEGIN
+     COF:=ColorOf(P2^,x,y);
+     IF COF>2 THEN COF:=1;
+     CASE VideoMode OF
+      1:Mem[$a000:320*(y0+y-1)+X0+X-1]:=Colors[COF];
+      2..8:NMPTW2.PutPixel(X0+X-1,Y0+Y-1,Colors[COF]);
+      9..11:NMPVESA.PutPixel(X0+X-1,Y0+Y-1+VesaActivePage,Colors[COF]);
+     END;
+    END;
+  MoveTo(X0+width[byte(St[i])],Y0)
+ END;
+MoveTo(X00,Y00);
+Colors[2]:=svek2;
+END;
+
+
+
+PROCEDURE CLSW(F:Byte);
+(*Borrar ventana*)
+VAR I:Word;
+    Ancho:Word;
+BEGIN
+ Ancho:=Win[Flags[F]].XF-Win[Flags[F]].X0+1;
+ CASE VideoMode OF
+  1:FOR I:=Win[Flags[F]].Y0 to Win[Flags[F]].YF DO
+                      FillChar(Mem[$A000:320*I+Win[Flags[F]].X0],Ancho,Colors[0]);
+  2..8:NMPTW2.ClearWindow(Win[Flags[F]].X0,Win[Flags[F]].Y0,Ancho,Win[Flags[F]].YF-Win[Flags[F]].Y0+1,Colors[0]);
+  9..11:NMPVESA.Rectangle(Win[Flags[f]].X0,
+        Win[Flags[F]].Y0+VesaActivePage,Ancho,Win[Flags[F]].YF-Win[Flags[F]].Y0+1,Colors[0]);
+ END;
+ IF F=24 THEN MoveTo(win[Flags[24]].X0,win[Flags[24]].y0);
+END;
+
+
+PROCEDURE Texto(XS:String);
+(*Imprime texto evitando cortes de palabra por fin de l°nea*)
+
+PROCEDURE WriteText(S:String);
+VAR Aux:String;
+    WidthPix:Word;
+    I:Word;
+BEGIN
+  BEGIN
+  S:=' '+S+' ';
+  WHILE Pos(' ',S)<>0 DO
+   BEGIN
+    S[Pos(' ',S)]:='˛';
+    IF Pos(' ',S)=0 THEN Exit;
+    S[Pos(' ',S)]:='˝';
+    Aux:=Copy(S,Pos('˛',S)+1,Pos('˝',S)-1-Pos('˛',S));
+    Hotkey;
+    WidthPix:=0;
+    FOR I:=1 TO Byte(Aux[0]) DO INC(WidthPix,width[byte(Aux[i])]);
+    IF ( widthpix          +Getx)>=(win[Flags[24]].xf-width[31]) THEN BEGIN
+                                                                   Moveto(win[Flags[24]].X0,Gety+(fontheigth+2));
+                                                                   IF GetY>Win[Flags[24]].YF-(fontheigth+2) THEN Scroll
+                                                                  END;
+    IF BTST(Flags[0],15) THEN OutF(Aux)
+                         ELSE OuttextCh(Aux);
+    IF Pos(' ',S)<>0 THEN OuttextCh(' ');
+    S[Pos('˛',S)]:='¸';
+    S[Pos('˝',S)]:=' '
+   END;
+ end;
+END;
+
+VAR PREPARA:String;
+    I:Byte;
+    Ch:Char;
+    Ex:Boolean;
+    Exp,Camb:Byte;
+    Salvacolor,SalvaColor2:Byte;
+    Salvafont:word;
+    STRIN:Byte;
+
+PROCEDURE ESCAPE;
+BEGIN
+ CASE XS[I] OF
+  '^':BEGIN
+       Descartecla;
+       WHILE getkey=0 DO IF BTST(Flags[0],4) THEN PR_INPUT;
+       Descartecla;
+       INC(I);
+      END;
+   '/':BEGIN
+        Colors[2]:=(XVAL(XS[I+1])*16+XVAL(XS[I+2]));
+        INC(I,3);
+       END;
+   '\':BEGIN
+        Colors[1]:=(XVAL(XS[I+1])*16+XVAL(XS[I+2]));
+             INC(I,3);
+       END;
+   '™':BEGIN
+        WriteText(STRS(Flags[XVAL(XS[I+1])*16+XVAL(XS[I+2])]));
+        INC(I,3);
+       END;
+   '#':BEGIN
+        MoveTo(win[Flags[24]].X0,Gety+(fontheigth+2));
+        INC(I);
+       END;
+   '|':BEGIN
+        LoadFont(STRS(XVAL(XS[I+1])*16+XVAL(XS[I+2])));
+        INC(I,3);
+       END;
+    '*':BEGIN
+         WriteText(PuntObj[Flags[23]]^.nombre);
+         INC(I);
+        END;
+    '_':BEGIN
+         WriteText(PuntObj[Flags[9]]^.nombre);
+         INC(I);
+        END;
+    '@':BEGIN
+         WriteText(GetNormalMessage(Flags[(XVAL(XS[I+1])*16 +
+          XVAL(XS[I+2]))]*256 + Flags[(XVAL(XS[I+3])*16 + XVAL(XS[I+4]))]));
+         INC(I,5);
+        END;
+    '‡':BEGIN
+         STRIN:=XVAL(XS[I+1])*16+XVAL(XS[I+2]);
+         CHECKSTR(STRIN);
+         WriteText(Strings[STRIN]^);
+         INC(I,3)
+        END;
+   END; (* CASE *)
+END; (* ESCAPE *)
+
+
+BEGIN
+ Salvacolor:=Colors[1];
+ SalvaCOlor2:=Colors[2];
+ SalvAFont:=Font;
+ I:=1;
+REPEAT
+ PREPARA:='';
+ WHILE (I<=byte(XS[0])) AND NOT (XS[I] IN ['^','\','/','#','*','|','@','‡','_','™']) DO
+  BEGIN
+   PREPARA:=PREPARA+XS[I];
+   INC(I)
+  END;
+  WriteText(PREPARA);
+  IF I<=Byte(XS[0]) THEN ESCAPE;
+ UNTIL I>byte(XS[0]);
+ IF NOT IsLongStr THEN
+  BEGIN
+   Colors[2]:=Salvacolor2;
+   Colors[1]:=Salvacolor;
+   IF FONT<>SalVafont THEN LoadFont(STRS(SALVAFONT));
+  END;
+END;
+
+
+
+
+PROCEDURE MES(M:Word);
+VAR S:String;
+    SC,SC2:Byte;
+    F:Word;
+BEGIN
+  f:=font;
+  GetOddMessage(M);
+  SC:=Colors[1];
+  SC2:=Colors[2];
+  REPEAT
+   SubOddStr(S);
+   IsLongStr:=True;
+   IF S<>'' THEN Texto(S);
+  UNTIL S='';
+  Colors[1]:=SC;
+  Colors[2]:=SC2;
+  IsLongStr:=False;
+  if f<>font then LoadFont(strs(f));
+END;
+
+
+PROCEDURE WRITE_(Proceso:Byte;M:Word);
+VAR S:String;
+    SC,SC2:Byte;
+    F:Word;
+BEGIN
+  f:=font;
+  GetOddWrite_(Proceso,M);
+  SC:=Colors[1];
+  SC2:=Colors[2];
+  REPEAT
+   SubOddStr(S);
+   IsLongStr:=True;
+   IF S<>'' THEN Texto(S);
+  UNTIL S='';
+  Colors[1]:=SC;
+  Colors[2]:=SC2;
+  isLongStr:=False;
+  if f<>font then  LoadFont(strs(f));
+END;
+
+
+PROCEDURE MESSAGE(M:Word);
+BEGIN
+ MES(M);
+ Texto('#')
+END;
+
+PROCEDURE WEIGHT(N:Byte);
+(*Guarda peso de todos los objetos portados en flag*)
+
+VAR I:Byte;
+BEGIN
+ Flags[N]:=0;
+ FOR i:=0 To 255 DO
+  IF (Whereat[i]=254) OR (WhereAt[i]=253) THEN
+   Inc(Flags[N],PuntObj[i]^.peso)
+END;
+
+PROCEDURE GET(N:Byte);
+(*Toma objeto*)
+
+BEGIN
+ IF PuntObj[N]^.nombre='' THEN BEGIN
+                                NewText;
+                                MESSAGE(8);
+                                Flags[9]:=255;
+                                Exit
+                               END;
+ Flags[9]:=N;
+ IF Whereat[N]=254 THEN BEGIN
+                         NewText;
+                         Message (11);
+                         Exit
+                        END;
+ IF Whereat[N]<>Flags[1] THEN BEGIN
+                               NewText;
+                               Message(9);
+                               Exit
+                              END;
+ (*Cogerlo*)
+ Weight(16);
+ IF PuntObj[N]^.peso+Flags[16]>Flags[14] THEN BEGIN
+                                                NewText;
+                                                Message(24);
+                                                Exit
+                                               END;
+ IF Objat[254]>=Flags[15] THEN BEGIN
+                                NewText;
+                                Message(10);
+                                Exit
+                               END;
+  Dec(Objat[Flags[1]]);
+  Whereat[N]:=254;
+  Inc(Objat[254]);
+  Inc(Flags[16],PuntObj[N]^.peso);
+  Message(7);
+END;
+
+PROCEDURE DROP(N:Byte);
+(*Deja obj*)
+
+BEGIN
+ IF PuntObj[N]^.nombre='' THEN
+                        BEGIN
+                         NewText;
+                         MESSAGE(12);
+                         Flags[9]:=255;
+                         Exit
+                        END;
+ Flags[9]:=N;
+ IF Whereat[N]<>254 THEN BEGIN
+                         NewText;
+                         Message (17);
+                         Exit
+                        END;
+ Dec(Objat[254]);
+ Whereat[N]:=Flags[1];
+ Inc(Objat[Flags[1]]);
+ Dec(Flags[16],PuntObj[N]^.peso);
+ Message(18);
+END;
+
+PROCEDURE WEAR(N:Byte);
+(*Se pone objeto*)
+
+BEGIN
+ IF PuntObj[N]^.nombre='' THEN BEGIN
+                         MESSAGE(25);
+                         NewText;
+                         Flags[9]:=255;
+                         Exit
+                        END;
+ Flags[9]:=N;
+ IF WhereAt[N]=253 THEN BEGIN
+                         NewText;
+                         Message(28);
+                         Exit
+                        END;
+ IF Whereat[N]<>254 THEN BEGIN
+                         NewText;
+                         Message (17);
+                         Exit
+                        END;
+ Dec(Objat[254]);
+ Whereat[N]:=253;
+ Inc(Objat[253]);
+ Message(26);
+END;
+
+PROCEDURE REMOVE(N:Byte);
+(*Quita objeto*)
+
+BEGIN
+ IF PuntObj[N]^.nombre='' THEN BEGIN
+                         MESSAGE(30);
+                         NewText;
+                         Flags[9]:=255;
+                         Exit
+                        END;
+ Flags[9]:=N;
+ IF Whereat[N]<>253 THEN BEGIN
+                         NewText;
+                         Message (29);
+                         Exit
+                        END;
+ Dec(Objat[253]);
+ Whereat[N]:=254;
+ Inc(Objat[254]);
+ Message(27);
+END;
+
+PROCEDURE GET2(N:Byte);
+BEGIN
+
+ auto:=True;
+ IF PuntObj[N]=NIL THEN BEGIN
+                         Flags[9]:=255;
+                         Exit
+                        END;
+ Flags[9]:=N;
+ IF Whereat[N]<>Flags[1] THEN Exit;
+ Weight(16);
+ IF Objat[254]>=Flags[15] THEN BEGIN
+                                Get(N);
+                                Auto:=False;
+                                Exit;
+                               END;
+ IF PuntObj[N]^.peso+Flags[16]>Flags[14] THEN BEGIN
+                                               Get(N);
+                                               Auto:=False;
+                                               Exit;
+                                              END;
+ Dec(Objat[Flags[1]]);
+ Whereat[N]:=254;
+ Inc(Objat[254]);
+ Inc(Flags[16],PuntObj[N]^.peso);
+ Message(7);
+ auto:=False;
+END;
+
+PROCEDURE DROP2(N:Byte);
+BEGIN
+ auto:=True;
+ IF PuntObj[N]=NIL THEN BEGIN
+                         Flags[9]:=255;
+                         Exit
+                        END;
+ Flags[9]:=N;
+ IF Whereat[N]<>254 THEN Exit;
+ Dec(Objat[254]);
+ Whereat[N]:=Flags[1];
+ Inc(Objat[Flags[1]]);
+ Dec(Flags[16],PuntObj[N]^.peso);
+ Message(18);
+ auto:=False;
+END;
+
+PROCEDURE WEAR2(N:Byte);
+BEGIN
+ auto:=True;
+ IF PuntObj[N]=NIL THEN BEGIN
+                         Flags[9]:=255;
+                         Exit
+                        END;
+ Flags[9]:=N;
+ IF WhereAt[N]=253 THEN Exit;
+ IF Whereat[N]<>254 THEN Exit;
+ Dec(Objat[254]);
+ Whereat[N]:=253;
+ Inc(Objat[253]);
+ Message(26);
+ auto:=False;
+END;
+
+PROCEDURE REMOVE2(N:Byte);
+BEGIN
+ auto:=True;
+ IF PuntObj[N]=NIL THEN BEGIN
+                         Flags[9]:=255;
+                         Exit
+                        END;
+ Flags[9]:=N;
+ IF Whereat[N]<>253 THEN Exit;
+
+ Dec(Objat[253]);
+ Whereat[N]:=254;
+ Inc(Objat[254]);
+ Message(27);
+ auto:=False;
+END;
+
+
+PROCEDURE AUTOG;
+LABEL GOTO1;
+VAR N:EnlaceObj;
+BEGIN
+N:=PuntObj[Flags[9]];
+GOTO1:
+auto:=false;
+GET2(Flags[9]);
+IF auto THEN IF N^.der<>NIL THEN IF N^.der^.pal=Flags[19] THEN BEGIN
+                                                                N:=N^.der;
+                                                                Flags[9]:=N^.num;
+                                                                Goto goto1
+                                                               END;
+IF auto THEN GET(Flags[9]);
+END;
+
+PROCEDURE AUTOD;
+LABEL GOTO1;
+VAR N:EnlaceObj;
+BEGIN
+N:=PuntObj[Flags[9]];
+goto1:
+auto:=false;
+Flags[9]:=N^.num;
+DROP2(Flags[9]);
+IF auto THEN IF N^.der<>NIL THEN IF N^.der^.pal=Flags[19] THEN BEGIN
+                                                                Flags[9]:=N^.num;
+                                                                N:=N^.der;
+                                                                Goto goto1
+                                                               END;
+IF auto THEN DROP(Flags[9]);
+END;
+
+PROCEDURE AUTOW;
+LABEL GOTO1;
+VAR N:EnlaceObj;
+BEGIN
+N:=PuntObj[Flags[9]];
+goto1:
+auto:=false;
+Flags[9]:=N^.num;
+WEAR2(Flags[9]);
+IF auto THEN IF N^.der<>NIL THEN IF N^.der^.pal= Flags[19] THEN BEGIN
+                                                             Flags[9]:=N^.num;
+                                                             N:=N^.der;
+                                                             Goto goto1
+                                                            END;
+IF auto THEN WEAR(Flags[9]);
+END;
+
+PROCEDURE AUTOREMOVE;
+LABEL GOTO1;
+VAR N:EnlaceObj;
+BEGIN
+N:=PuntObj[Flags[9]];
+goto1:
+auto:=false;
+Flags[9]:=N^.num;
+REMOVE2(Flags[9]);
+IF auto THEN IF N^.der<>NIL THEN IF N^.der^.pal=Flags[19] THEN BEGIN
+                                                             Flags[9]:=N^.num;
+                                                             N:=N^.der;
+                                                             Goto goto1
+                                                            END;
+IF auto THEN REMOVE(Flags[9]);
+END;
+
+
+
+
+PROCEDURE LeerFrase(VAR St:String;ForzarLeer:boolean);
+
+CONST Control:Set OF Char=[#27]+[#8]+[#13];
+
+VAR Validas:SetOFChar;
+
+VAR Y0:Word;
+    sn:mensaje;
+    I:WorD;
+    len:word;
+
+LABEL PATRAS;
+
+PROCEDURE EXTRAEFRASE;
+VAR I:Byte;
+    Pal:String[20];
+BEGIN
+ St:='';
+ IF GuardaFrase='' THEN Exit;
+ Pal:='';
+ I:=1;
+ WHILE TRUE DO
+  BEGIN
+   Pal:=Pal+GuardaFrase[I];
+   IF (GuardaFrase[I] IN ['"',' ',',','.']) OR (I=Byte(GuardaFrase[0])) THEN
+    BEGIN
+     IF I<>byte(GuardaFrase[0]) THEN PAL:=Copy(Pal,1,byte(pal[0])-1);
+     IF i<=byte(guardaFrase[0]) THEN IF GuardaFrase[I] IN ['"','.',',']
+      THEN BEGIN
+            St:=St+Pal;
+            Pal:='.'
+           END;
+     IF Byte(GuardaFrase[0])=I THEN BEGIN
+                                     GuardaFrase:=Copy(GuardaFrase,I+1,255);
+                                     St:=St+Pal;
+                                     Exit
+                                    END;
+     IF Numerode(CONJU,Pal)=255 THEN BEGIN
+                                     St:=St+Pal+' ';
+                                     Pal:=''
+                                    END
+                               ELSE BEGIN
+                                     GuardaFrase:=Copy(GuardaFrase,I+1,255);
+                                     Exit
+                                    END;
+     END;
+   INC(I);
+  END;
+END;
+
+
+
+
+
+BEGIN
+ TimeOutt:=False;
+ St:='';
+ IF GuardaFrase <>'' THEN BEGIN
+                           ExtraeFrase;
+                           Dec(TimeOut);
+                          END;
+
+ IF (ST='') AND ForzarLeer THEN
+  BEGIN
+   sn:=GetNormalMessage(33);
+   Len:=RealLen(Sn);
+   Validas:=['a'..'z','A'..'Z','á','Ä','†'..'•','0'..'9',' ','Ç','ö','Å','"',',','.'];
+   IF ModoTest THEN Validas:=Validas+['+'];
+   Patras:
+   IF GetX<>win[Flags[24]].X0 THEN Y0:=GetY+(fontheigth+2)
+                              ELSE Y0:=GetY;
+   IF Y0>=Win[Flags[24]].YF-(fontheigth+2) THEN BEGIN
+                                     Scroll;
+                                     Dec(Y0,(fontheigth+2))
+                                    END;
+   MoveTo(win[flags[24]].X0,Y0);
+   Texto(sn);
+   ReadStr(St,win[flags[24]].x0+LEN,Y0,255,1,validas,true);
+   Moveto(win[flags[24]].x0,y0+(fontheigth+2));
+   IF TimeOut=0 THEN TimeOutt:=True;
+   IF (St[1]<>'+') AND (St<>'CSG') AND (st<>'GSC') THEN SaveFrase:=St;
+   Descartecla;
+   GuardaFrase:=St;
+   ExtraeFrase;
+  END;
+END;
+
+
+
+PROCEDURE ReadString(VAR St:String;Validas:SETOFCHAR);
+VAR Y0:Word;
+    length:byte;
+BEGIN
+IF GetX<>win[Flags[24]].X0 THEN
+                            Y0:=GetY+(fontheigth+2)
+                           ELSE Y0:=GetY;
+IF Y0>Win[Flags[24]].YF-(fontheigth+2) THEN BEGIN
+                                 Scroll;
+                                 Dec(Y0,(fontheigth+2))
+                                END;
+IF 'A' IN Validas then length:=255 else length:=5;
+ReadStr(St,Win[flags[24]].X0,Y0,length,2,
+ Validas,
+ FALSE);
+ Moveto(WIn[Flags[24]].X0,Y0+(fontheigth+2));
+ Descartecla;
+END;
+
+PROCEDURE LeerSave(VAR St:String);
+VAR Y0:Word;
+BEGIN
+IF GetX<>win[Flags[24]].X0 THEN
+                            Y0:=GetY+(fontheigth+2)
+                           ELSE Y0:=GetY;
+IF Y0>Win[Flags[24]].YF-(fontheigth+2) THEN BEGIN
+                                 Scroll;
+                                 Dec(Y0,(fontheigth+2))
+                                END;
+St:='';
+ReadStr(St,Win[flags[24]].X0,Y0,8,2,
+ ['a'..'z','A'..'Z','á','Ä','†'..'•','0'..'9','Ç','ö','Å','"'],
+ FALSE);
+ Moveto(WIn[Flags[24]].X0,Y0+(fontheigth+2));
+ Descartecla;
+END;
+
+PROCEDURE LeerFlag(VAR St:String);
+VAR I:Byte;
+BEGIN
+OUTXYF(0,(fontheigth+2),'Valor:   ');
+St:='';
+MOVETO(getPixellength('Valor:   ',6),(fontheigth+2));
+REPEAT
+ ReadStr(St,GetX,Gety,16,2,['0'..'9'],FALSE);
+UNTIL (byte(st[0])<6) OR (byte(ST[0])=16);
+IF Byte(ST[0])=16 THEN FOR I:=1 TO 16 DO IF NOT(ST[I] IN ['0','1']) THEN ST:='';
+Descartecla;
+END;
+
+
+
+PROCEDURE OK(TIPO:Boolean);
+VAR Sn:Mensaje;
+    a:char;
+BEGIN
+ Sn:=GetNormalMessage(20);
+ Descartecla;
+ A:=readkey;
+ Notdone:=Upcase(a)<>Upcase(Sn[1]);
+ IF NOT TIPO THEN NOTDONE:=NOT NOTDONE;
+END;
+
+FUNCTION MakeSaveDir(SaveDir:String):String;
+BEGIN
+ {$I-}
+ MKDIR(Copy(SAVEDIR,1,byte(Savedir[0])-1));
+ InOutRes:=0;
+END;
+
+PROCEDURE GRABADATOS(VAR F:FILE);
+(* Recibe un fichero abierto y hace un SAVEGAME en Çl *)
+VAR I:Word;
+    Aux:tPila;
+    El:Word;
+    St:string;
+BEGIN
+ System.BlockWrite(F,Win,SizeOf(Win));
+ System.BlockWrite(F,BITMAP,128);
+ System.BlockWrite(F,VideoMode,1);
+ System.BlockWrite(F,Flags,512);
+ System.BlockWrite(F,WhereAt,256);
+ System.BlockWrite(F,Objat,256);
+ FOR I:=1 TO NumConj DO System.BlockWrite(F,Conj[I],SizeOf(Conj[i]));
+ System.BlockWrite(F,font,2);
+ System.BlockWrite(F,Colors[1],1);
+ System.BlockWrite(F,Colors[2],1);
+ System.BlockWrite(F,Colors[0],1);
+ (*Ahora guardo las pilas*)
+ Crear(Aux);
+ FOR I:=1 TO NumConj DO
+  BEGIN
+   System.BlockWrite(F,Pila[i]^.num,sizeof(Pila[i]^.num));
+   WHILE NOT Vacia(Pila[I]) DO
+    BEGIN
+     POP(Pila[I],El);
+     PUSH(Aux,El);
+    END;
+   WHILE NOT Vacia(Aux) DO
+    BEGIN
+     Pop(Aux,El);
+     System.BlockWrite(F,El,2);
+     Push(Pila[I],El)
+    END;
+  END;
+ (*Y ahora las colas*)
+ FOR I:=1 TO NumConj DO
+  BEGIN
+   System.BlockWrite(F,Cola[i]^.num,sizeof(Cola[i]^.num));
+   FOR J:=1 TO Cola[i]^.num DO
+    BEGIN
+     POPC(Cola[i],El);
+     System.BlockWrite(F,El,2);
+     PUSHC(Cola[i],El)
+    END
+  END;
+ (* Ahora las cadenas *)
+ System.BlockWrite(F,NumString,2);
+ IF NumString<>65535 THEN FOR I:=0 TO NumString DO System.BlockWrite(F,Strings[i]^,256);
+ (* Ahora las conexiones *)
+ I:=0;
+ WHILE (i<256) AND (Conections[I]<>NIL) DO INC(I);
+ System.BlockWrite(F,I,1);
+ I:=0;
+ WHILE (i<256) AND (Conections[I]<>NIL) DO BEGIN
+                              INC(I);
+                              System.BlockWrite(F,Conections[I]^,20)
+                             END;
+ I:=0;
+ (*AHORA LOS INDICADORES DE OBJETOS*)
+ WHILE (I<256) AND (PuntObj[I]<>NIL) DO
+  BEGIN
+   System.BlockWrite(F,PuntObj[I]^.Flags,2);
+   INC(I)
+  END;
+END;
+
+PROCEDURE SAVE;
+VAR I,J:Word;
+    F:File;
+    Sn:Mensaje;
+    a:char;
+    St:String;
+
+
+BEGIN
+ Sn:=getNormalMessage(20);
+ IF DiskFree(0)<1200 THEN BEGIN
+                           Message(35);  (*TT*)
+                           Exit
+                          END;
+ I:=0;
+ Message(14);
+ LeerSave(St);
+ IF St='' THEN Exit;
+ St:=SaveDir+ST;
+ Assign(F,St+'.NMS');
+ System.reset(F,1);
+ IF System.IOResult=0 THEN BEGIN
+                     Close(f);
+                     Message(16);
+                     A:=ReadKey;
+                     IF (a<>Sn[1]) AND (Upcase(a)<>sn[1]) AND (a<>UPCASE(Sn[1])) THEN EXIT;
+                    END;
+ System.Rewrite(F,1);
+ IF System.IOResult<>0 THEN BEGIN
+                             Message(36);  (*TT*)
+                             Exit
+                            END;
+ Message(34);
+ Grabadatos(F);
+ System.Close(F);
+END;
+
+PROCEDURE SAVE1;
+VAR I,J:Word;
+    F:File;
+    El:Word;
+    Aux:tPila;
+
+BEGIN
+ IF DiskFree(0)<1200 THEN BEGIN
+                           Message(35);  (*TT*)
+                           Exit
+                          END;
+ Assign(F,Savedir+'NMSAVE.TMP');
+ System.Rewrite(F,1);
+ IF system.IOResult<>0 THEN BEGIN
+                             Message(36);
+                             Exit
+                            END;
+ Grabadatos(F);
+ System.Close(F);
+END;
+
+
+
+PROCEDURE Cargadatos(VAR F:FILE);
+VAR I:Word;
+    El:word;
+    Num:Word;
+BEGIN
+ System.BlockRead(F,Win,SizeOf(Win));
+ System.BlockRead(F,BITMAP,128);
+ System.BlockRead(F,VideoMode,1);
+ System.BlockRead(F,Flags,512);
+ System.BlockRead(F,WhereAt,256);
+ System.BlockRead(F,ObjAt,256);
+ FOR I:=1 TO NumConj DO System.BlockRead(F,Conj[I],SizeOf(Conj[i]));
+ System.BlockRead(F,font,2);
+ IF font<>0 THEN
+  LoadFont(strs(font));
+ System.BlockRead(F,Colors[1],1);
+ System.BlockRead(F,Colors[2],1);
+ System.BlockRead(F,Colors[0],1);
+ (*Vaciar Pilas y Colas*)
+ FOR I:=1 TO NumConj DO WHILE NOT VACIA(Pila[I]) DO POP(Pila[I],El);
+ FOR I:=1 TO NumConj DO WHILE NOT VACIAC(Cola[I]) DO POPC(Cola[I],El);
+ (*Ahora leo las pilas*)
+ FOR I:=1 TO NumConj DO
+  BEGIN
+   System.BlockRead(F,num,SizeOf(Pila[1]^.num));
+   FOR J:=1 to num DO
+    BEGIN
+     System.BlockRead(F,El,2);
+     PUSH(Pila[I],El)
+    END;
+  END;
+ (*Ahora las colas*)
+ FOR I:=1 TO NumConj DO
+  BEGIN
+   System.BlockRead(F,num,2);
+   FOR J:=1 to num DO
+    BEGIN
+     System.BlockRead(F,El,2);
+     PUSHC(Cola[I],El)
+    END;
+  END;
+ (* Ahora las cadenas *)
+ IF NumString<>65535 THEN FOR I:=0 TO NumString DO FreeMem(Strings[I],256);
+ System.BlockRead(F,NumString,2);
+ IF NumString<>65535 THEN FOR I:=0 TO NumString DO
+  BEGIN
+   GetMem(pointer(Strings[I]),256);
+   System.BlockRead(F,Strings[i]^,256);
+  END;
+ (* Ahora las conexiones *)
+ System.BlockRead(F,I,1);
+ J:=0;
+ WHILE J<I DO BEGIN
+                INC(J);
+                System.BlockRead(F,Conections[J]^,20)
+               END;
+ MOVED(Conections[Flags[1]]^,Conex,20);
+ I:=0;
+ WHILE NOT EOF(F) DO
+  BEGIN
+   System.BlockRead(F,Puntobj[I]^.Flags,2);
+   INC(I)
+  END;
+END;
+
+PROCEDURE LOAD;
+VAR N:string;aux:word;code:integer;
+    F:File;I,J:Word;
+BEGIN
+ Message(39);
+ Flags[13]:=0;
+ LeerSave(N);
+ IF N='_' THEN BEGIN
+                Flags[13]:=1;
+                Exit
+               END;
+ N:=Savedir+N;
+ Assign(F,N+'.NMS');
+ System.Reset(F,1);
+ IF System.IOResult<>0 THEN BEGIN
+                      Message(37);
+                      Flags[13]:=1;
+                      Exit
+                     END;
+ CargaDatos(F);
+ System.Close(F);
+Flags[13]:=0;
+END;
+
+PROCEDURE LOAD1;
+VAR F:File;Num:Word;I,J:Word;El:word;
+BEGIN
+ Assign(F,Savedir+'NMSAVE.TMP');
+ System.Reset(F,1);
+ IF System.IOResult<>0 THEN BEGIN
+                      Message(42);
+                      Flags[13]:=1;
+                      Exit
+                     END;
+ Flags[13]:=0;
+ CargaDatos(F);
+ System.Close(F);
+Flags[13]:=0;
+END;
+
+PROCEDURE Input(VAR ver,nom,prep,nom2,ver2,lo:palabra;ForzarLeer:Boolean);
+
+LABEL Releer; (*Ups!*)
+
+VAR frase:string;
+    {$IFDEF ALCACHOFA}
+    px1,px2:string[16];
+    {$ELSE}
+    px1,px2:string[5];
+    {$ENDIF}
+    NEnc,VEnc,N2Enc,PEnc,V2ENC:Boolean;
+    P:palabra;
+    I,J:Byte;
+    {$IFDEF ALCACHOFA}
+    LOG : Text;
+    {$ENDIF}
+
+    Procedure Estandarizar(VAR p:string);
+    VAR I:1..80;
+        S:String;
+    BEGIN
+    S:='';
+    FOR I:=1 TO byte(p[0]) DO
+     CASE p[i] OF
+      '"':BEGIN END;
+      'A'..'Z':s:=s+Chr(byte(p[i])+32);
+      '†':s:=s+'a';
+      'Ç','ê':s:=s+'e';
+      '°':s:=s+'i';
+      '¢':s:=s+'o';
+      '£','Å','ö':s:=s+'u';
+      '•','§':s:=s+'§';
+      'Ä','á':s:=s+'á';
+      'a'..'z','0'..'9','‡'..'Ó','&':s:=s+p[i];
+      ' ':IF S[byte(s[0])]<>' ' THEN S:=S+' ';
+     END;
+     P:=S;
+    END;
+
+
+VAr ENLAce:EnlaceObj;
+    N:Byte;
+    Save18:Word;
+
+
+BEGIN
+RELEER:
+Timeout:=flags[12]*200;
+Timeoutt:=false;
+Frase:='';
+LeerFrase(frase,forzarleer);
+IF Timeout=0 THEN Exit;
+if (frase='CSG')THEN BEGIN
+                      Texto('Versi¢n '+version+' DIAG'); (*TT*)
+                      ModoTest:=True;
+                      goto ReLeer;
+                     END;
+
+if (frase='GSC')THEN BEGIN
+                      Texto('Versi¢n '+version+' E.P.P.'); (*TT*)
+                      Debug:=True;ModoTest:=True;Debug2:=true;
+                      goto ReLeer;
+                     END;
+
+IF ModoTest THEN
+IF frase[1]='+' THEN BEGIN
+                      PX1:=copy(frase,2,3);
+                      IF byte(frase[0])>4 THEN BEGIN
+                                                PX2:=copy(frase,5,5);
+                                                Flags[valx(px1)]:=valw(px2);
+                                               END
+                                          ELSE texto(' Valor:'+strs(flags[valx(px1)]));
+                     goto releer
+                     END;
+frase:=' '+frase+' ';
+estandarizar(frase);
+Ver:='$$';
+Nom:='$$';
+Nom2:='$$';
+pre:='$$';
+ver2:='$$';
+
+(*Aqu° comienza el analizador*)
+
+{$IFDEF ALCACHOFA}
+Assign(LOG,'c:\P.LOG');
+Append(LOG);
+if IOResult<>0 then Rewrite(log);
+WriteLn(Log, frase);
+{$ENDIF}
+
+VEnc:=False;
+V2Enc:=False;
+NEnc:=False;
+N2Enc:=False;
+PEnc:=False;
+
+I:=1;
+Frase[1]:='˛';
+WHILE I<>byte(Frase[0]) DO
+BEGIN
+ INC(I);
+ IF Pos(' ',Copy(Frase,i,{$IFDEF ALCACHOFA}16{$ELSE}5{$ENDIF}))<>0 THEN
+    P:=Copy(Frase,i,Pos(' ',Frase)-i) ELSE P:=Copy(Frase,i,{$IFDEF ALCACHOFA}16{$ELSE}5{$ENDIF});
+    I:=Pos(' ',frase);
+    IF BTST(Flags[10],0) THEN
+    IF ( ((Frase[I-1]='o') OR (Frase[I-1]='a') OR (Frase[I-1]='e')) AND (Frase[I-2]='l') )
+      OR (((Frase[I-2]='o') OR (Frase[I-2]='a') OR (Frase[I-2]='e'))  AND (Frase[I-3]='l') AND (frase[I-1]='s'))
+      THEN
+     IF Nom='$$' THEN Nom:=lo;
+    Frase[I]:='˛';
+    {$IFDEF ALCACHOFA}
+    WriteLn(log,p);
+    {$ENDIF}
+    IF NOT Venc THEN BEGIN
+                      VEnc:=Numerode(Verbos,p)<>255;
+                      IF Venc THEN ver:=P
+                     END
+                ELSE IF NOT V2enc THEN BEGIN
+                                        V2Enc:=NumeroDe(verbos,p)<>255;
+                                        IF v2enc THEN ver2:=p
+                                       END;
+    IF NOT Nenc THEN BEGIN
+                      Nenc:=NumeroDe(nombres,p)<>255;
+                      IF Nenc THEN nom:=p
+                     END
+                ELSE IF NOT N2enc THEN BEGIN
+                                        N2Enc:=NumeroDe(nombres,p)<>255;
+                                        IF N2enc THEN Nom2:=p
+                                       END;
+
+    IF NOT Penc THEN BEGIN
+                      PEnc:=NumeroDe(Preposic,p)<>255;
+                      IF Penc THEN pre:=P
+                     END;
+
+
+END;
+
+{$IFDEF ALCACHOFA}
+system.Close(log);
+{$ENDIF}
+
+
+IF Nom<>'$$' THEN Lo:=Nom;
+
+Save18:=Flags[18];
+Flags[18]:=NumeroDe(verbos,ver);
+Flags[21]:=NumeroDe(verbos,ver2);
+Flags[19]:=NumeroDe(nombres,nom);
+Flags[22]:=NumeroDe(nombres,nom2);
+Flags[20]:=NumeroDe(preposic,pre);
+
+N:=Numerode(nombres,nom);
+Enlace:=PunteroaObj(Objetos,N);
+IF Enlace=NIL THEN Flags[9]:=255
+              ELSE Flags[9]:=Enlace^.num;
+
+N:=Numerode(nombres,nom2);
+Enlace:=PunteroaObj(Objetos,N);
+IF Enlace=NIL THEN Flags[23]:=255
+              ELSE Flags[23]:=Enlace^.num;
+
+
+IF AunHayMas AND (Flags[18]=255) AND (Flags[9]<>255) THEN Flags[18]:=Save18;
+AunHayMas:=Guardafrase<>'';
+
+END; (*INPUT*)
+
+
+
+PROCEDURE Exits(Loc:Byte;NMes:Byte);
+VAR
+    I,j:Byte;
+    S,ComaMess:Mensaje;
+
+BEGIN
+
+MoveD(Conections[Loc]^,CNX,20);
+
+(* Leo mensajes para listar *)
+
+Comamess:=GetNormalMessage(38);
+J:=0;  (* N£mero de salidas *)
+FOR I:=0 TO 19 DO IF Cnx[I]<>0 THEN Inc(J);
+IF J=0 THEN BEGIN
+             S:=getNormalMessage(NMes);
+             Texto(S);
+            END
+       ELSE BEGIN
+             S:=getNormalMessage(Nmes+1);
+             texto(S);
+             FOR I:=0 TO 19 DO
+               IF Cnx[I]<>0 THEN BEGIN
+                S:=GetNormalMessage(NMes+2+I);
+                Dec(J);
+                IF J>1 THEN Texto(S+ComaMess)
+                      ELSE IF J=1 THEN BEGIN
+                                        texto(S);
+                                        S:=GetNormalMessage(46);
+                                        texto(S); (*y*)
+                                       END
+                      ELSE BEGIN
+                            comamess:=GetNormalMessage(23);
+                            texto(S+comamess)
+                           END;
+               END;
+            END;
+END; (*EXITS*)
+
+PROCEDURE LISTAT(L:Byte;Tipo:Boolean);
+VAR
+    I,J:Byte;
+    COmamess:Mensaje;
+    S:String;
+
+BEGIN
+ comamess:=GetNormalMessage(38);
+ i:=Objat[L];
+ FOR j:=0 TO 255 DO
+  IF Whereat[j]=L THEN
+   BEGIN
+    S:=PuntObj[j]^.nombre;
+    IF TIPO AND (((PuntObj[J]^.Flags) AND ($8000)) <>0) THEN BEGIN
+                                                              Comamess:=GetNormalMessage(47);
+                                                              S:=S+ComaMess;
+                                                              Comamess:=GetNormalMessage(38);
+                                                             END;
+    IF I>2 THEN Texto(S+ComaMess) ELSE  (* , *)
+     IF I=2 THEN BEGIN
+                  Texto(S);
+                  Mes(46);
+                 END;        (* Y *)
+    DEC(I)
+   END;
+ Comamess:=GetNormalMessage(23);
+ Texto(S+ComaMess);   (* . *)
+END;
+
+
+FUNCTION HayLuz:Boolean;
+VAR Luz:Boolean;
+BEGIN
+IF NOT BTST(Flags[0],0) THEN BEGIN
+                               HayLuz:=True;
+                               Exit
+                              END;
+ Luz:=False;
+ I:=0;
+ WHILE (I<=255) AND NOT Luz DO
+  BEGIN
+   IF PuntObj[I]<>NIL THEN
+    IF ((PuntObj[I]^.Flags AND $8000)<>0)
+     AND ((Whereat[i]=254) OR (WhereAt[i]=253) OR (WhereAt[i]=Flags[1]))
+      THEN Luz:=True;
+   INC(I);
+  END;
+ HayLuz:=Luz
+END;
+
+
+PROCEDURE DSC(L:Byte);
+VAR F:FILE;
+    S:STRING;
+    D:Longint;
+BEGIN
+ IF Conections[L]=NIL THEN Exit; (* Si no existe la localidad pues na *)
+ Assign(F,'L.DAT');
+ Reset(F,1);
+ D:=longint(L)*(1026+256);
+ Seek(F,D);
+ BlockRead(F,OddStr.LEN,2);
+ BlockRead(F,OddStr.TXT,OddStr.Len);
+ Close(F);
+ XOROddStr;
+ REPEAT
+  SubOddStr(S);
+  IF S<>'' THEN Texto(s);
+ UNTIL S='';
+END;
+
+PROCEDURE DESCRIBE(L:Byte);
+VAR I:Byte;
+    W,W2:Palabra;
+BEGIN
+ IF BTST(Flags[0],1) THEN
+  BEGIN
+   CASE VideoMode OF
+   1:CLS;
+   2..8:CLSTWEAK(Colors[0]);
+   9..11:
+    NMPVESA.Rectangle(0,0+VesaActivePage,logicwidth-1,scrheight-1,Colors[0]);
+   end;
+   MoveTo(win[Flags[24]].X0,win[Flags[24]].y0);
+  END;
+ IFPARSE(255);
+ IF NOT HayLuz THEN
+  Mes(2)
+  ELSE
+   BEGIN
+    DSC(L);
+   END;
+ Desc:=False;
+ MoveD(Conections[L]^,conex,20);
+END;
+
+PROCEDURE DIRECCIONES;
+BEGIN
+ IF (Flags[18]>19) THEN Exit;
+
+ IF (Conex[Flags[18]]=0) THEN BEGIN
+                               NewText;
+                               Message(4);
+                               DDone:=True;
+                               Exit
+                              END;
+ Flags[1]:=Conex[Flags[18]];
+ Desc:=True;
+END;
+
+
+PROCEDURE Icon(Nombre:String; Tipo:Word);
+  VAR F:File;
+      P,Q:^IK;
+      I,J:Byte;
+      H:Byte;
+ BEGIN
+  Flags[13]:=0;
+  IF MaxAvail<2048 THEN BEGIN
+                         Flags[13]:=2;
+                         Exit
+                        END;
+  Assign(F,Nombre+'.ICO');
+  Reset(F,1);
+  IF IOResult<>0 THEN BEGIN
+                       Flags[13]:=1;
+                       Exit
+                      END;
+  GetMem(pointer(P),1024);
+  BlockRead(F,P^,1024);
+  Close(F);
+
+  getMem(pointer(Q),1024);
+  IF VideoMode IN [2..8] THEN GoTweak(P^,Q^,1024) ELSE MoveD(P^,Q^,1024);
+  CASE VideoMode OF
+   1:Segment2.getImage(P^,getx,gety,32,32);
+   2..8:C4_getImage(getx,gety,32,32,P);
+   9..11:NMPVESA.GetImage(getx,gety+VesaActivePage,32,32,P^);
+  end;
+  CASE Tipo OF
+    2:ICOXOR(Q^,P^);
+    3:ICOOR(Q^,P^);
+    4:ICOAND(Q^,P^);
+    5:ICONOT(Q^,P^)
+    ELSE MoveD(Q^,P^,1024);
+  END;
+  IF BTST(Flags[0],2) THEN EsperaBarrido;
+  CASE VideoMode OF
+   1:segment2.PutImage(P^,getx,gety,32,32);
+   2..8:C4_PutImage(getx,gety,32,32,P);
+   9..11:NMPVESA.PutiMage(getx,gety+VesaActivePage,32,32,P^,0);
+  end;
+  FreeMem(pointer(p),1024);
+  FreeMem(pointer(q),1024);
+END;
+
+PROCEDURE PCXFAST(S:STRING);
+VAR F:FILE;
+    P,P2:Pointer;
+    W:Word;
+    L:LongInt;
+BEGIN
+ IF VideoMode>1 THEN Error(25);
+ Assign(F,S+'.PCX');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      Exit
+                     END;
+ L:=FileSize(F);
+ IF L>65535 THEN BEGIN
+                  Close(F);
+                  Error(26);
+                 END;
+ IF MaxAvail<65535 THEN BEGIN
+                         PCX256(S,True);
+                         Exit;
+                        END;
+ GetMem(P,L);
+ BlockRead(F,P^,L);
+ UNPACKPCX(TRUE,P^,Mem[$a000:0],Pall0);
+ Close(F);
+ Flags[13]:=0;
+END;
+
+PROCEDURE PLAYSFX(O1:Word;Fr:Word);
+VAR F:FILE;
+    Size:Word;
+    ID:String[23];
+    SR:Byte;
+    Long:WorD;
+BEGIN
+ IF NOT ExistSB THEN Exit;
+ IF BTST(Flags[0],11) THEN BEGIN
+                            DMAStop;
+                            BCLR(Flags[0],11);
+                           END;
+ Assign(F,STRS(O1)+'.SFX');
+ Reset(F,1);
+ IF IOResult<>0 THEN BEGIN
+                      Flags[13]:=1;
+                      Exit
+                     END;
+ BlockRead(F,ID,24); (* Evitar ID *)
+ BlockRead(F,Size,2);
+ BlockRead(F,SR,1);
+ IF SFXPtr<>NIL THEN FreeMem(SFXPtr,SizeLastSFX);
+ GetMem(SFXPtr,Size);
+ SizeLastSFX:=Size;
+ BlockRead(F,SFXPtr^,Size);
+ Close(F);
+ IF Flags[29]>1 THEN AdjustSFX(SfxPtr^,Flags[29]);
+ IF FR<>0 THEN SR:=256 - 1000000 div fr;
+ PlayBack(Size,SR);
+END;
+
+PROCEDURE TALKER(O1:WORD);
+TYPE ARRA=ARRAY[1..20] OF RECORD
+                                                  I:Byte;
+                                                  P:Word
+                                                 END;
+VAR F:FILE;
+    SaveX,SaveY:Word;
+    SaveWin:Byte;
+    Flag:Byte;
+    N_MENUS:BYTE;
+    Offset:Longint;
+    N_FRASES:Byte;
+    N_COND,N_ACCI:Byte;
+    N_Opc:Byte;
+    FRASE,W:Word;
+    I,J:Byte;
+    Ch:Char;
+    Ext:Boolean;
+    Explor,Camb:Byte;
+    STRUCT:ARRAY[1..10] OF RECORD
+                            F1,F2:String;
+                            N:Word;
+                            COND,ACCI:ARRA;
+                            Opcion:Char;
+                           END;
+
+
+
+FUNCTION ACTIVE(N:Word;A:ARRA):Boolean;
+VAR I:Byte;
+    Act:boolean;
+BEGIN
+ Active:=True;
+ ACT:=BITSET.BTST(BITMAP,N);
+ IF NOT ACT THEN BEGIN
+                  Active:=false;
+                  Exit;
+                 END;
+ FOR I:=1 TO 20 DO
+  BEGIN
+  CASE A[I].I OF
+   1:ACT:=WHEREAT[A[I].P]=254;
+   2:ACT:=WHEREAT[A[I].P]<>254;
+   3:ACT:=BITSET.BTST(BITMAP,A[I].P);
+   4:ACT:=NOT BITSET.BTST(BITMAP,A[I].P);
+   5:ACT:=Flags[A[I].P]=0;
+   6:ACT:=Flags[A[I].P]<>0;
+  END;
+  IF NOT ACT THEN BEGIN
+                   Active:=False;
+                   EXIT;
+                  END;
+  END;
+END;
+
+PROCEDURE RUN(A:ARRA);
+VAR I:Byte;
+BEGIN
+ FOR I:=1 TO 20 DO
+  CASE A[I].I OF
+   1:Flags[A[I].P]:=255;
+   2:Flags[A[I].P]:=0;
+   3:BEGIN
+      DEC(Objat[Whereat[A[I].P]]);
+      Whereat[A[I].P]:=254;
+      INC(Objat[254]);
+      INC(Flags[16],Puntobj[A[I].p]^.peso);
+     END;
+   4:BEGIN
+      IF Whereat[A[I].p]=254 THEN DEC(Flags[16],Puntobj[A[I].p]^.peso);
+      DEC(Objat[Whereat[A[I].P]]);
+      Whereat[A[I].P]:=252;
+      INC(OBJAT[252]);
+     END;
+   5:BITSET.BCLR(BITMAP,A[I].P);
+   6:BITSET.BSET(BITMAP,A[I].P);
+   7:Flags[Flag]:=A[I].P;
+   8:BEGIN
+      Flags[24]:=A[I].P;
+      CLSW(Flags[24]);
+      MoveTo(Win[Flags[24]].X0,Win[Flags[24]].Y0);
+     END;
+  END;
+END;
+
+
+BEGIN
+ Assign(F,STRS(O1)+'.TLK');
+ Reset(F,1);
+ IF IOResult<>0 THEN Error(16);
+ BlockRead(F,N_MENUS,1);
+ Seek(F,1+N_MENUS*4+128);
+ BlockRead(F,Flag,1);
+ IF Flags[Flag]>=N_MENUS THEN BEGIN
+                               Close(F);
+                               Error(29);
+                              END;
+ Seek(F,1+Flags[Flag]*4);
+ BlockRead(F,Offset,4);
+ INC(Offset,N_MENUS*4+1);
+ Seek(F,Offset+1); (* Salto el n£mero de men£ *)
+ BlockRead(F,N_FRASES,1);
+ N_OPC:=0;
+ FILLChar(STRUCT,SizeOf(Struct),0);
+ FOR I:=1 TO N_FRASES DO
+  WITH STRUCT[I] DO
+   BEGIN
+    Blockread(F,N,2);
+    BlockRead(F,F1,1);
+    Blockread(F,F1[1],byte(F1[0]));
+    XORST(F1);
+    BlockRead(F,F2,1);
+    Blockread(F,F2[1],byte(F2[0]));
+    XORST(F2);
+    BlockRead(F,N_COND,1);
+    FOR J:=1 TO N_COND DO BEGIN
+                           BlockRead(F,COND[J].I,1);
+                           BlockRead(F,COnd[J].P,2);
+                          END;
+    BlockRead(F,N_ACCI,1);
+    FOR J:=1 TO N_ACCI DO BEGIN
+                           BlockRead(F,ACCI[J].I,1);
+                           BlockRead(F,ACCI[J].P,2);
+                          END;
+    IF ACTIVE(N,COND) THEN BEGIN
+                            INC(N_Opc);
+                            Opcion:=Char(N_Opc+48);
+                           END ELSE Opcion:='#';
+    IF Opcion<>'#' THEN BEGIN
+                         texto(Opcion+'.- '+F1);
+                         Texto('#');
+                        END;
+   END;
+  Close(F);
+  IF N_OPC=0 THEN Error(30);
+  Ch:='#';
+  Descartecla;
+  REPEAT
+   W:=GetKey;
+   ch:=char(system.lo(w));
+   ext:=hi(w)<>0;
+   explor:=hi(w);
+   IF BTST(Flags[0],4) THEN PR_INPUT;
+   IF Ext AND (Explor=68) THEN Error(0);
+  UNTIL byte(Ch)-48 IN [1..N_OPC];
+  I:=1;
+  WHILE STRUCT[I].Opcion<>CH DO INC(I);
+  RUN(STRUCT[I].ACCI);
+  Texto(STRUCT[I].F2);
+ END;
+

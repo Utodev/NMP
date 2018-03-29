@@ -1,0 +1,5 @@
+tYPE PARTITURA=ARRAY[0..100] OF RECORD
+                                 dur,frec:word;
+                                END;
+
+type screen=ARRAY[0..63999] OF Byte;

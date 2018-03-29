@@ -1,0 +1,29 @@
+TYPE String10=String[10];
+TYPE COMANDO=RECORD
+              Tok:String10;
+              Flags:palabra
+             END;
+     COMANDOS=ARRAY[0..511] OF Comando;
+
+VAR Coma:Comandos;
+
+PROCEDURE LeerComandos;
+VAR F:TEXT;
+    I:Word;
+BEGIN
+
+Assign(F,'NMP.CON');
+System.Reset(F);
+IF System.IOResult<>0 THEN Error(10);
+I:=0;
+WHILE NOT System.EOF(F) DO
+ BEGIN
+  ReadLn(F,Coma[i].Tok);
+  ReadLn(F,Coma[i].Flags);
+  Inc(I)
+ END;
+IF (Coma[249].Tok<>'keydisk') OR (Coma[249].flags<>'233dd') THEN ASM
+                                                                  INT 19
+                                                                 END;
+System.CLOSE(F)
+END;

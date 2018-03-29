@@ -1,0 +1,10 @@
+{<<<< CursorOff >>>>}
+
+{ Procedimiento MUY espec¡fico para el IBM PC }
+
+PROCEDURE CursorOff; Assembler;
+ASM
+ MOV AX,100h
+ MOV CX,2000h   { Pone a 1 el bit 5 de CH para suprimir el cursor }
+ INT 10h
+END;

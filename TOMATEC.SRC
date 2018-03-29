@@ -1,0 +1,71 @@
+{->>>>TomaTecla<<<<-----------------------------------------------}
+{                                                                 }
+{ Nombre Fichero: TOMATEC.SRC / Ultima revisi¢n 23/7/88           }
+{                                                                 }
+{ Esta rutina utiliza los servicios de la ROM BIOS para comprobar }
+{ la presencia de un car cter esperando en el buffer de teclado   }
+{ y, si ‚sto sucede, devolverlo. La propia funci¢n devuelve el    }
+{ valor l¢gico TRUE si se ha le¡do alg£n car cter. El car cter    }
+{ se devuelve en Ch. Si la tecla pulsada era un "car cter         }
+{ especial" (NO-ASCII), la variable booleana Exted se devuelve    }
+{ a TRUE y el c¢digo de dicha variable se devuelve en Explor.     }
+{ Adem s, TOMATEC devuelve el estado de cambio cada vez que es    }
+{ llamada tanto si se ha le¡do un car cter como si no. Este       }
+{ valor se devuelve como 8 bits indicadores en el byte Camb,      }
+{ de acuerdo con el siguiente criterio:                           }
+{                                                                 }
+{             BITS                                                }
+{     7  6  5  4  3  2  1  0                                      }
+{     1  .  .  .  .  .  .  .  INS         (1=Activo)              }
+{     .  1  .  .  .  .  .  .  CAPS.LOCK   (1=Activo)              }
+{     .  .  1  .  .  .  .  .  NUM.LOCK.   (1=Activo)              }
+{     .  .  .  1  .  .  .  .  SCROLL LOCK (1=Activo)              }
+{     .  .  .  .  1  .  .  .  ALT         (1=Pulsado)             }
+{     .  .  .  .  .  1  .  .  CTRL        (1=Pulsado)             }
+{     .  .  .  .  .  .  1  .  SHIFT IZQ.  (1=Pulsado)             }
+{     .  .  .  .  .  .  .  1  SHIFT DER.  (1=Pulsado)             }
+{                                                                 }
+{ Para comprobar los bits individuales se utilizan m scaras y     }
+{ el operador AND:                                                }
+{                                                                 }
+{   IF (Camb AND $0A) = $0A THEN PulsadosCtrlYAlt;                }
+{                                                                 }
+{-----------------------------------------------------------------}
+
+FUNCTION TomaTecla(VAR Cha  : Char;
+                VAR Extend : Boolean;
+                VAR Explor : Byte;
+                Var Camb   : Byte) : Boolean;
+
+VAR Listo : Boolean;
+
+BEGIN
+  Extend := False;
+  Explor := 0;
+  ASM
+   MOV AH,1h
+   INT 16h
+   JZ @NOTECLA
+   SUB AH,AH
+   INT 16h
+   LES DI,[CHA]
+   MOV ES:[DI],AL
+   LES DI,[EXPLOR]
+   MOV ES:[DI],AH
+   MOV AX,1 (* DEVUELVE TRUE *)
+   JMP @FIN
+   @NOTECLA:
+   XOR AX,AX (* DEVUELVE FALSE *)
+   @FIN:
+   MOV LISTO,AL
+  END;
+  Extend := CHA=#0;
+  ASM
+   MOV AH,02;          { AH=2: Lee estado shift/alt/ctrl }
+   INT 16h
+   LES DI,[CAMB]
+   MOV ES:[DI],AL
+  END;
+  TomaTecla := Listo
+
+END;

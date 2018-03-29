@@ -1,0 +1,85 @@
+(*Crea el procedimiento LeerFicheroObjetos que crea el  rbol de busqueda*)
+(*ordenado a partir de la palabra *)
+(*Se crea la variable global OBJETOS,que es el puntero al  rbol*)
+(*Se crea la variable global OBJAT,que almacena el n§ de objetos en cada loc*)
+(*Se crea la variable global WhereAt,que almacena donde est  cada obj.*)
+
+TYPE NomObj =  String[40];
+     enlaceObj=^objeto;
+     Objeto = RECORD
+               Num:Byte;
+               Pal:Byte;
+               Nombre:NomObj;
+               Peso:Byte;
+               Flags:Word;
+               izq,der:EnlaceObj
+              END;
+
+     ObjetoF =RECORD
+               Pal:Palabra;
+               Nombre:NomObj;
+               Peso,Inicial:Byte;
+               Flags:Word;
+              END;
+
+VAR Objetos:EnlaceObj;
+    WhereAt:Array[Byte] OF Byte;
+    Objat : ARRAY[Byte] OF Byte;
+    PuntObj : ARRAY[Byte] OF EnlaceObj;
+    CountObj:Byte;
+
+
+PROCEDURE Incluir(VAR P:EnlaceObj;O:ObjetoF);
+BEGIN
+IF P=NIL THEN BEGIN
+               GetMem(pointer(P),SizeOf(Objeto));
+               PuntObj[CountObj]:=P;
+               P^.Pal:=Numerode(nombres,o.pal);
+               IF P^.pal=255 THEN Error(11);
+               P^.Num:=CountObj;
+               P^.Nombre:=O.Nombre;
+               P^.flags:=O.flags;
+               P^.peso:=O.peso;
+               Inc(Objat[O.Inicial]);
+               WhereAt[CountObj]:=O.Inicial;
+               P^.izq:=NIL;
+               P^.der:=NIL
+              END
+ELSE IF P^.pal>Numerode(nombres,O.Pal) THEN Incluir(P^.izq,O)
+                     ELSE Incluir(P^.der,O)
+END;
+
+
+PROCEDURE LeerFicheroObjetos;
+ VAR FObj:FILE;
+     ObjF:ObjetoF;
+     Pnt:EnlaceObj;
+     I:Byte;
+
+ BEGIN
+  WHILE DiskFree(0)=-1 DO;
+  FillChar(ObjAt,256,0);               (*Todas las loc vacias*)
+  FillChar(WhereAt,256,252);          (*Todas las loc vacias*)
+  FillChar(PuntObj,1024,0);
+  Assign(FObj,'O.DAT');
+  Reset(FObj,1);
+  IF IOResult<>0 THEN Error(12);
+  CountObj:=0;
+  Objetos:=NIL;
+  WHILE NOT EOF(FObj) DO
+   BEGIN
+    BlockRead(FObj,ObjF,SizeOf(ObjF));
+    Incluir(Objetos,ObjF);
+    Inc(CountObj)
+   END;
+  Close(FObj);
+ END;
+
+FUNCTION PunteroAObj(O:EnlaceObj;N:Byte):EnlaceObj;
+VAR I:Word;
+ BEGIN
+  I:=0;
+  WHILE (PuntObj[I]<>NIL) AND (PuntObj[I]^.pal<>N) AND (I<256) DO Inc(I);
+  IF (I=256) OR (PuntObj[I]=NIL) THEN PunteroAObj:=NIL
+             ELSE PunteroaObj:=PuntObj[I];
+ END;

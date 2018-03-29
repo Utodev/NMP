@@ -1,0 +1,20 @@
+{$F+}
+PROCEDURE CALLDRV(A,B:Word;C:Byte);
+VAR D,E:Word;
+BEGIN
+ D:=Flags[17];
+ E:=Flags[13];
+ASM
+ MOV AX,A
+ MOV BX,B
+ MOV CX,D
+ MOV DI,E
+ MOV DL,C
+ CALL DRVPTR
+ MOV E,CX
+ MOV D,AX
+END;
+ Flags[17]:=E;
+ Flags[13]:=D
+END;
+{$f-}

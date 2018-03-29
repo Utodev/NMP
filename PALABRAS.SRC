@@ -1,0 +1,94 @@
+
+
+(* Se crea el tipo vocabulario y los procedimientos de insertar y buscar *)
+(* Tambi‚n el procedimiento de leer palabras del disco y crear un  rbol *)
+
+TYPE UNIONPAL=RECORD
+               {$IFDEF ALCACHOFA}
+               p:String[16];
+               {$ELSE}
+               p:String[5];
+               {$ENDIF}
+               n:Byte
+              END;
+     PUnion=^Union;
+     Union=RECORD
+            {$IFDEF ALCACHOFA}
+            p:String[16];
+            {$ELSE}
+            p:String[5];
+            {$ENDIF}
+            n:byte;
+            sig:PUnion;
+           END;
+
+TYPE TIpo=ARRAY[0..254] OF PUnion;
+
+PROCEDURE Insertar(VAR V:Tipo;P:UnionPal);
+VAR Aux:Punion;
+BEGIN
+ IF V[P.n]=NIL THEN BEGIN
+                     GetMem(pointer(V[P.N]),SizeOf(Union));
+                     V[P.n]^.p:=P.p;
+                     V[P.n]^.n:=P.n;
+                     V[P.n]^.sig:=NIL
+                    END
+               ELSE BEGIN
+                     Getmem(pointer(Aux),SizeOf(Union));
+                     Aux^.p:=p.p;
+                     Aux^.n:=p.n;
+                     Aux^.sig:=V[P.n];
+                     V[P.n]:=Aux
+                    END;
+END;
+
+
+VAR Nombres,Verbos,Preposic,Conju :Tipo;
+
+    PROCEDURE LeerFichero(DosName:String;VAR V:Tipo);
+     VAR FPal:FILE;
+         P:UNIONPAL;
+
+     BEGIN
+      FillChar(V,SizeOf(V),0);
+      WHILE DiskFree(0)=-1 DO;
+      Assign(FPal,DosName);
+      Reset(FPal,1);
+      IF IOResult<>0 THEN Error(9);
+      WHILE NOT EOF(Fpal) DO
+       BEGIN
+        BlockRead(Fpal,P,SizeOf(P));
+        Xorst(p.P);
+        Insertar(V,P);
+       END;
+      P.P:='.';
+      P.N:=0;
+      IF DosName='CONJ.DTT' THEN Insertar(V,p);
+      P.P:=',';
+      IF DosName='CONJ.DTT' THEN Insertar(V,p);
+      Close(Fpal);
+     END;
+
+FUNCTION NumeroDe(V:Tipo;pa:palabra):Byte;
+VAR I:Byte;
+    Aux:Punion;
+ BEGIN
+  FOR I:=0 TO 254 DO
+   BEGIN
+    Aux:=V[I];
+    WHILE Aux<>NIL DO IF Aux^.p=pa THEN BEGIN
+                                         Numerode:=i;
+                                         Exit
+                                        END
+                                   ELSE Aux:=Aux^.sig;
+   END;
+  NumeroDe:=255;
+END;
+
+FUNCTION Palabrade(V:Tipo;b:byte):palabra;
+BEGIN
+ IF V[b]<>NIL THEN Palabrade:=V[B]^.p
+              ELSE Palabrade:='';
+END;
+
+
